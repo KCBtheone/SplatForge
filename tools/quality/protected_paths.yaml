@@ -1,0 +1,21 @@
+schema_version: 1
+policy_id: splatforge-protected-paths-v1
+protected_paths:
+  - specs/**
+  - provenance/**
+  - work_orders/**
+  - src/splatforge/core/**
+  - src/splatforge/providers/torch/**
+  - tests/conformance/**
+  - tests/properties/**
+  - tests/gradients/**
+  - tests/tolerances/**
+  - benchmarks/definitions/**
+  - benchmarks/baselines/**
+  - tools/schemas/**
+  - tools/quality/**
+  - .github/**
+  - pyproject.toml
+  - LICENSE
+  - REUSE.toml
+

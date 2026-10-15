@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splatforge.local/schemas/spec_catalog.schema.json",
+  "title": "SplatForge operator-definition catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "definitions"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "definitions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+@[1-9][0-9]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["package", "spec_revision"],
+        "properties": {
+          "package": {
+            "type": "string",
+            "pattern": "^specs/[A-Za-z0-9_./-]+$"
+          },
+          "spec_revision": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}
+

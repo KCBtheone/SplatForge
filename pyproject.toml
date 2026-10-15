@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "splatforge"
+version = "0.0.1a1"
+description = "An operator-first research prototype for geometry-oriented Gaussian Splatting"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+keywords = ["gaussian-splatting", "geometry", "reconstruction", "pytorch", "operators"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "torch>=2.1",
+  "PyYAML>=6.0",
+  "jsonschema>=4.21",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "numpy>=1.24", "scipy>=1.10", "Pillow>=10"]
+studio = ["numpy>=1.24", "scipy>=1.10", "Pillow>=10"]
+mesh = ["open3d>=0.18"]
+gsplat-radegs = ["gsplat @ git+https://github.com/Mollylulu/gsplat_radegs.git@23b0f82551a938a05b5b99df06edf220b9305a51"]
+
+[project.urls]
+Repository = "https://github.com/KCBtheone/SplatForge"
+Issues = "https://github.com/KCBtheone/SplatForge/issues"
+Documentation = "https://github.com/KCBtheone/SplatForge/blob/main/docs/studio/PUBLIC_GUIDE.md"
+
+[project.scripts]
+splatforge = "splatforge.studio.cli:main"
+sf-train = "splatforge.studio.cli:train_main"
+sf-export = "splatforge.studio.cli:export_main"
+sf-eval = "splatforge.studio.cli:eval_main"
+sf-viewer = "splatforge.studio.cli:viewer_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"splatforge.providers.torch.testing" = ["*.implementation.yaml"]
+"splatforge.providers.torch.gaussian" = ["*.cu"]
+"splatforge.gaussian" = ["semantics.json"]
+"splatforge.studio" = ["viewer.html", "viewer.js", "viewer.css"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]

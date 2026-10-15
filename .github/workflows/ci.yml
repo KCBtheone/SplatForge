@@ -1,0 +1,31 @@
+name: CPU prototype checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CPU environment
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e '.[studio,test]' build
+      - name: Runtime, operators, and Studio tests
+        run: python tools/quality/run_phase0_checks.py
+      - name: Companion synthetic tests
+        working-directory: commercial_unbiased_gsplat
+        run: |
+          python -m pip install --no-deps --no-build-isolation -e .
+          python -m unittest discover -s tests -v
+      - name: Build main source distribution and wheel
+        run: python -m build

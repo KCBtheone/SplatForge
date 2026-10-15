@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "definitions": {
+    "testing.scale_shift@1": {
+      "package": "specs/testing/scale_shift",
+      "spec_revision": "sha256:6a052b25409d4e139e6926d4f889ac38c796c12448a7ce2e12c8b252921faa09"
+    }
+  }
+}

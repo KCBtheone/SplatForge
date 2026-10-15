@@ -1,0 +1,4 @@
+include LICENSE NOTICE README.md SOURCE_POLICY.md SPEC.md
+recursive-include csrc *.cu *.cpp
+recursive-include tests *.py
+global-exclude __pycache__ *.py[cod]

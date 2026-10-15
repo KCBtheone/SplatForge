@@ -1,0 +1,35 @@
+schema_version: 1
+implementation_id: splatforge.torch.testing.scale_shift.v1
+provider: torch
+provider_api: 1
+op: testing.scale_shift@1
+op_spec_revision: sha256:6a052b25409d4e139e6926d4f889ac38c796c12448a7ce2e12c8b252921faa09
+implementation_version: 1.0.0
+lowering_target: splatforge.providers.torch.testing.scale_shift:scale_shift
+static_variant_token: phase0-scale-shift-v1
+priority: 0
+
+declared_eligibility:
+  devices:
+    - cpu
+  dtypes:
+    - float32
+    - float64
+  layouts:
+    - contiguous
+  backward: true
+  backward_may_copy_grad_output: false
+  jvp: true
+  determinism_guarantee: bitwise
+  host_synchronization: none
+  cuda_graph: false
+  execution:
+    eager: supported
+    compile: unsupported
+    fake: unsupported
+    export: unsupported
+  constraints: {}
+
+build:
+  fingerprint: phase0-source-fixture-v1
+  artifact_digest: source-only

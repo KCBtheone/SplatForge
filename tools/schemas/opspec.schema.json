@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splatforge.local/schemas/opspec.schema.json",
+  "title": "SplatForge OpSpec manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "maturity",
+    "owners",
+    "spec_package",
+    "summary",
+    "operands",
+    "attributes",
+    "outputs",
+    "semantics",
+    "autograd",
+    "numerics",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+@[1-9][0-9]*$"
+    },
+    "maturity": {
+      "enum": ["proposal", "experimental", "candidate", "stable", "deprecated"]
+    },
+    "owners": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "spec_package": {"type": "string", "minLength": 1},
+    "summary": {"type": "string", "minLength": 1},
+    "operands": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/value"}
+    },
+    "attributes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/value"}
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/value"}
+    },
+    "semantics": {"type": "object", "minProperties": 1},
+    "autograd": {"type": "object", "minProperties": 1},
+    "numerics": {"type": "object", "minProperties": 1},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conformance_suite", "provenance"],
+      "properties": {
+        "conformance_suite": {"type": "string", "minLength": 1},
+        "property_suite": {"type": "string", "minLength": 1},
+        "gradient_suite": {"type": "string", "minLength": 1},
+        "tolerance_table": {"type": "string", "minLength": 1},
+        "benchmark_definition": {"type": "string", "minLength": 1},
+        "provenance": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {
+    "value": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "kind"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "kind": {"enum": ["tensor", "scalar", "tuple", "enum"]}
+      }
+    }
+  }
+}
+

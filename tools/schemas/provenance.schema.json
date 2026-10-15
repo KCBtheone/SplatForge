@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splatforge.local/schemas/provenance.schema.json",
+  "title": "SplatForge operator provenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "op", "status", "normative_sources", "source_exposure", "license_review", "patent_status"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "op": {"type": "string", "minLength": 1},
+    "status": {"enum": ["draft", "reviewed", "frozen"]},
+    "normative_sources": {"type": "array", "items": {"type": "object"}},
+    "source_exposure": {"type": "object"},
+    "license_review": {"type": "object"},
+    "patent_status": {"enum": ["unreviewed", "reviewed_no_blocker", "blocked"]}
+  }
+}
+

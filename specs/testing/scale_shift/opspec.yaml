@@ -1,0 +1,62 @@
+schema_version: 1
+id: testing.scale_shift@1
+maturity: experimental
+owners:
+  - runtime-maintainers
+spec_package: specs/testing/scale_shift/
+summary: Phase 0 virtual operator used only to prove the contract and provider lifecycle.
+
+operands:
+  - name: input
+    kind: tensor
+    shape: arbitrary
+    dtype_family: floating
+    device_relation: single_tensor
+    differentiable: true
+
+attributes:
+  - name: scale
+    kind: scalar
+    scalar_type: finite_real
+    default: 1.0
+  - name: bias
+    kind: scalar
+    scalar_type: finite_real
+    default: 0.0
+
+outputs:
+  - name: output
+    kind: tensor
+    shape_relation: same_as_input
+    dtype_relation: same_as_input
+    device_relation: same_as_input
+
+semantics:
+  equation: output = input * scale + bias
+  broadcasting: none
+  mutation: none
+  aliasing: none
+  output_cardinality: fixed
+  empty_input: return_empty_output
+  non_finite_input: propagate
+  static_attribute_non_finite: reject
+
+autograd:
+  vjp:
+    - input
+  jvp: inherited_from_torch_composition
+  second_order: inherited_from_torch_composition
+  nondifferentiable:
+    - scale
+    - bias
+
+numerics:
+  accumulator_dtype: input_dtype
+  output_dtype: input_dtype
+  profiles:
+    - strict
+
+evidence:
+  conformance_suite: tests/conformance/testing/test_scale_shift.py
+  provenance: provenance/testing.scale_shift.yaml
+

@@ -1,0 +1,10 @@
+Commercial Unbiased Surfel for gsplat
+Copyright 2026 SplatForge contributors
+
+This product is designed to interoperate with gsplat, Copyright 2023 The Nerfstudio
+Team and contributors, licensed under the Apache License, Version 2.0.
+
+The academic method description is attributed to Yixin Yang, Yang Zhou, and Hui
+Huang, "Introducing Unbiased Depth into 2D Gaussian Splatting for High-accuracy
+Surface Reconstruction", arXiv:2503.06587v3. No code from the authors' separately
+licensed repository is included.

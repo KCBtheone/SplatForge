@@ -1,0 +1,14 @@
+include LICENSE NOTICE README.md THIRD_PARTY.md CONTRIBUTING.md ARCHITECTURE.md REUSE.toml
+graft src
+graft specs
+graft provenance
+graft tests
+graft tools
+graft docs
+graft work_orders
+prune build
+prune dist
+prune commercial_unbiased_gsplat
+prune self_reports
+prune environment
+global-exclude __pycache__ *.py[cod] *.local.json

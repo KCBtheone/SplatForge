@@ -1,0 +1,191 @@
+schema_version: 1
+policy_id: SF-PGSR-SOURCE-POLICY-DRAFT-1
+status: planning_only
+normative: false
+accessed_at: "2026-09-12"
+
+claim_language:
+  allowed: source-controlled independent implementation from public mathematical descriptions
+  forbidden:
+    - certified clean-room implementation
+    - source-compatible PGSR reimplementation
+    - commercially licensed PGSR derivative
+
+roles:
+  spec_author:
+    target_algorithm_documents: allow_explicit_entries_only
+    target_implementation_sources: deny
+    network: allowlist_only
+  reference_author:
+    target_algorithm_documents: local_original_spec_only
+    target_implementation_sources: deny
+    network: "off"
+  implementation_agent:
+    target_algorithm_documents: local_original_spec_only
+    target_implementation_sources: deny
+    network: "off"
+  verification_agent:
+    target_algorithm_documents: local_original_spec_only
+    target_implementation_sources: deny
+    network: "off"
+  compliance_reviewer:
+    target_algorithm_documents: metadata_and_license_only
+    target_implementation_sources: deny
+    network: allowlist_only
+
+spec_author_allowlist:
+  - id: pgsr_arxiv_abs_v2
+    type: paper_metadata
+    url: https://arxiv.org/abs/2406.06521v2
+    version: arXiv:2406.06521v2
+    purpose: authorship, version, DOI, abstract and license metadata
+    redistribution_in_apache_repository: false
+    content_digest: TO_BE_ARCHIVED_OUTSIDE_REPOSITORY_AND_PINNED
+  - id: pgsr_arxiv_html_v2
+    type: paper
+    url: https://arxiv.org/html/2406.06521v2
+    version: arXiv:2406.06521v2
+    purpose: equations and method scope for independent contract derivation
+    restrictions:
+      - do not copy prose, figures, tables or page styling
+      - do not follow code links
+      - restate mathematics using original notation and SplatForge-owned semantics
+    redistribution_in_apache_repository: false
+    content_digest: TO_BE_ARCHIVED_OUTSIDE_REPOSITORY_AND_PINNED
+  - id: pgsr_project_page
+    type: official_project_page
+    url: https://zju3dv.github.io/pgsr/
+    version: snapshot_at_2026-09-12
+    purpose: confirm author-stated high-level scope only
+    restrictions:
+      - do not copy or redistribute media
+      - do not navigate to code
+    redistribution_in_apache_repository: false
+    content_digest: TO_BE_ARCHIVED_OUTSIDE_REPOSITORY_AND_PINNED
+  - id: pgsr_software_license
+    type: license
+    url: https://github.com/zju3dv/PGSR/blob/main/LICENSE.md
+    version: MUTABLE_MAIN_MUST_BE_REPLACED_BY_EXACT_COMMIT
+    purpose: compliance review only
+    redistribution_in_apache_repository: false
+    content_digest: TO_BE_PINNED
+
+implementation_document_allowlist_template:
+  - id: local_frozen_packet
+    type: splatforge_owned_material
+    path: IMPLEMENTATION_PACK/**
+    aggregate_digest: TO_BE_FILLED_BEFORE_DISPATCH
+  - id: pytorch_custom_operator_docs
+    type: official_documentation_snapshot
+    upstream_url: https://docs.pytorch.org/tutorials/advanced/custom_ops_landing_page.html
+    version: TO_BE_LOCKED_TO_TOOLCHAIN
+    local_path: TO_BE_MIRRORED
+    content_digest: TO_BE_PINNED
+  - id: pytorch_cpp_cuda_custom_ops
+    type: official_documentation_snapshot
+    upstream_url: https://docs.pytorch.org/tutorials/advanced/cpp_custom_ops.html
+    version: TO_BE_LOCKED_TO_TOOLCHAIN
+    local_path: TO_BE_MIRRORED
+    content_digest: TO_BE_PINNED
+  - id: pytorch_autograd_registration
+    type: official_documentation_snapshot
+    upstream_url: https://docs.pytorch.org/tutorials/advanced/python_custom_ops_registrations.html
+    version: TO_BE_LOCKED_TO_TOOLCHAIN
+    local_path: TO_BE_MIRRORED
+    content_digest: TO_BE_PINNED
+  - id: pytorch_reproducibility
+    type: official_documentation_snapshot
+    upstream_url: https://docs.pytorch.org/docs/stable/notes/randomness.html
+    version: TO_BE_LOCKED_TO_TOOLCHAIN
+    local_path: TO_BE_MIRRORED
+    content_digest: TO_BE_PINNED
+  - id: triton_documentation
+    type: official_documentation_snapshot
+    upstream_url: https://triton-lang.org/main/index.html
+    version: TO_BE_LOCKED_TO_TOOLCHAIN
+    local_path: TO_BE_MIRRORED
+    content_digest: TO_BE_PINNED
+  - id: cuda_programming_guide
+    type: official_documentation_snapshot
+    upstream_url: https://docs.nvidia.com/cuda/cuda-programming-guide/
+    version: TO_BE_LOCKED_TO_TOOLCHAIN
+    local_path: TO_BE_MIRRORED
+    content_digest: TO_BE_PINNED
+  - id: cuda_best_practices
+    type: official_documentation_snapshot
+    upstream_url: https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/
+    version: TO_BE_LOCKED_TO_TOOLCHAIN
+    local_path: TO_BE_MIRRORED
+    content_digest: TO_BE_PINNED
+  - id: compute_sanitizer_docs
+    type: official_documentation_snapshot
+    upstream_url: https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html
+    version: TO_BE_LOCKED_TO_TOOLCHAIN
+    local_path: TO_BE_MIRRORED
+    content_digest: TO_BE_PINNED
+
+default_rule: deny_unlisted_sources
+
+source_denylist:
+  - pattern: https://github.com/zju3dv/PGSR/**
+    exception: LICENSE.md may be accessed by the compliance reviewer only
+  - pattern: any PGSR fork, mirror, diff, pull request, issue, discussion or source search snippet
+  - pattern: diff-plane-rasterization and all forks or mirrors
+  - pattern: diff-gaussian-rasterization and all forks or mirrors
+  - pattern: original 3DGS rasterizer implementation and all source-derived summaries
+  - pattern: Gaussian Wrapping target operators or source-derived summaries
+  - pattern: gsplat or third-party reimplementations of the target operators
+  - pattern: wheel, shared library, PTX, cubin, SASS, symbols or disassembly for a target implementation
+  - pattern: kernel traces or intermediate target buffers used to infer implementation behavior
+  - pattern: blogs, forums, Q-and-A snippets or LLM answers derived from target source
+  - pattern: arXiv TeX source, paper figures and project-page media
+  - pattern: local source checkouts, package caches, extension caches or remote environments containing denied code
+  - pattern: the current full conversation history when launching the implementation agent
+
+black_box_policy:
+  default: disabled_without_explicit_rights_review
+  normative_oracle: false
+  implementation_agent_access: none
+  if_authorized_later:
+    - freeze inputs, metrics and tolerances before observing outputs
+    - run by an isolated evaluator
+    - observe only documented final-layer outputs
+    - prohibit intermediate buffers, traces, disassembly and adaptive probing
+    - store raw outputs outside the Apache repository in a restricted evidence store
+    - return only aggregate pass-fail and categorized errors to maintainers
+
+historical_non_normative_material:
+  - id: splatatlasvol_raw_plane_depth_history
+    description: Prior SplatAtlasVol render-only raw plane_depth preparation and records.
+    validation_status: not_revalidated_in_this_effort
+    permitted_use: maintainer background only
+    prohibited_uses:
+      - OpSpec semantics
+      - reference implementation behavior
+      - analytic fixture values
+      - golden tensors
+      - tolerance calibration
+      - correctness oracle
+      - RTX 4080 SUPER performance or memory baseline
+      - implementation-agent packet
+    staleness: may_be_outdated
+
+current_source_exposure:
+  status: planning_actor_not_eligible_as_clean_source_evidence
+  actor: current_root_session
+  date: "2026-09-12"
+  observed:
+    - official repository README and top-level file tree for project scope
+    - official LICENSE.md
+    - search results that inadvertently exposed a small number of target-source paths or identifiers
+  not_observed_or_used:
+    - target source file bodies
+    - target CUDA implementation copied into this pack
+    - target binaries, disassembly or kernel traces
+  consequence:
+    - this directory is planning material, not legal proof of independent implementation
+    - final normative specs and references should be recreated or independently reviewed in fresh isolated contexts
+    - the implementation agent must not inherit this conversation
+
+patent_status: unreviewed
+legal_note: This policy is engineering provenance guidance, not legal advice.

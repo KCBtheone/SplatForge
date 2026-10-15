@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-13",
+  "integration": {
+    "radegs": {
+      "repository": "https://github.com/Mollylulu/gsplat_radegs",
+      "commit": "23b0f82551a938a05b5b99df06edf220b9305a51",
+      "license": "Apache-2.0",
+      "api": "gsplat.rasterization(..., RadeGS=True) or low-level fully_fused_projection/isect_tiles/rasterize_to_pixels; unpacked only",
+      "moment_backend": "gsplat-radegs-moments: native per-pixel geometry and weights, 9 polynomial moments for detached-weight L2; no L1 output",
+      "stable_moment_backend": "gsplat-radegs-stable-moments: native RGB/conic projection and rasterization; explicitly differentiable float64 Cholesky ray-plane geometry. Same port regularization/FOV equations, not its approximate float32 VJP. New named operator contract; fresh training run required.",
+      "stable_geometry_source": "https://github.com/Mollylulu/gsplat_radegs/blob/23b0f82551a938a05b5b99df06edf220b9305a51/gsplat/cuda/include/Utils.cuh",
+      "training_schedule": "RaDe-GS paper v2 section 4.1.1: first 15k photometric-only, next 15k geometric losses; previous 1k warmup was a recipe error and is retired",
+      "rgb_only_optimization": "public native RGB path with identical colors/support; gated by value and parameter-gradient comparison, no replacement renderer",
+      "dependency_mode": "optional, no vendored source",
+      "submodules": "glm from g-truc/glm, permissive license; preserve upstream notices",
+      "evidence": "https://github.com/Mollylulu/gsplat_radegs/blob/23b0f82551a938a05b5b99df06edf220b9305a51/LICENSE"
+    },
+    "depth_anything3": {
+      "repository": "https://github.com/ByteDance-Seed/Depth-Anything-3",
+      "commit": "41736238f5bced4debf3f2a12375d2466874866d",
+      "code_license": "Apache-2.0",
+      "model": "https://huggingface.co/depth-anything/DA3-BASE",
+      "model_revision": "f4a6c9b3c95e41c82048423d3493a81ec3fa810e",
+      "weight_license": "Apache-2.0",
+      "configuration": "training views only; supplied COLMAP poses/intrinsics and input-pose scale alignment; resolution 504; windows 12, overlap 4; resample to full input resolution using intrinsics",
+      "paper_difference": "DA3-BASE replaces the paper's noncommercial Nested-Giant weight; window size also differs. Not paper-equivalent.",
+      "dependency_boundary": "optional external SDK/runtime, not vendored; transitive licenses still require their own compliance review"
+    }
+  },
+  "independent_mathematical_implementations": {
+    "radegs_reference": "https://arxiv.org/html/2406.01467v2",
+    "ambisur": "https://arxiv.org/html/2605.12494v1",
+    "gof": "https://arxiv.org/html/2404.10772",
+    "multiview_geometry": "https://arxiv.org/html/2406.06521v2"
+  },
+  "shared_engine_correctness": {
+    "ssim_layout": "Explicit NCHW contiguous pooling, unchanged forward values/window/dtype. Real Object1 directional VJPs and 20-update descent controls validate this workaround for the current Torch 2.1 CUDA layout path; not a statement about all Torch versions.",
+    "initialization": "Opt-in training-mask-consistent COLMAP seed selection; >=2 foreground observations and zero observed background; no held-out image/mask input or coordinate normalization.",
+    "cuda_composite": "Independent Apache-2.0 CUDA float32 implementation of selected alpha-compositing values and VJPs; native Torch sort indices retained for L1 ties; detached L2 weights; no target restricted code. Explicit opt-in backend, 16 GPU fixture cases passed, real-object validation separately recorded.",
+    "tile_binning": "Per-footprint construction with exact inclusive tile boundaries and globally stable depth order; exhaustive-list comparison regression, not a support reduction."
+  },
+  "restricted_source_not_used": [
+    "https://github.com/Fictionarry/AmbiSuR",
+    "https://github.com/autonomousvision/gaussian-opacity-fields",
+    "https://github.com/HKUST-SAIL/RaDe-GS",
+    "https://github.com/zju3dv/PGSR"
+  ],
+  "search_result": "No complete permissive AmbiSuR/GOF gsplat port found. Exact AmbiSuR and Gaussian Opacity Fields plus gsplat repository searches were checked, along with author repository license texts.",
+  "claim_status": "experimental implementation; neither paper-equivalence nor legal certification"
+}

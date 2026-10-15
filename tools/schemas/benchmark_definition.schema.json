@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splatforge.local/schemas/benchmark_definition.schema.json",
+  "title": "SplatForge benchmark definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "benchmark_id",
+    "op",
+    "status",
+    "spec_revision",
+    "seed",
+    "cases",
+    "measurement",
+    "thresholds",
+    "baseline_environment_id"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "benchmark_id": {"type": "string", "minLength": 1},
+    "op": {"type": "string", "minLength": 1},
+    "status": {"enum": ["draft", "frozen"]},
+    "spec_revision": {"type": "string", "minLength": 1},
+    "seed": {"type": "integer", "minimum": 0},
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["case_id"],
+        "properties": {"case_id": {"type": "string", "minLength": 1}}
+      }
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["warmups", "retained_samples", "timing", "synchronization", "measure_peak_memory", "separate_cold_compile"],
+      "properties": {
+        "warmups": {"type": "integer", "minimum": 0},
+        "retained_samples": {"type": "integer", "minimum": 1},
+        "timing": {"enum": ["cuda_events", "wall_clock"]},
+        "synchronization": {"type": "string", "minLength": 1},
+        "measure_peak_memory": {"type": "boolean"},
+        "separate_cold_compile": {"type": "boolean"}
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status"],
+      "properties": {"status": {"enum": ["hypothesis", "frozen"]}}
+    },
+    "noise_rule": {"type": "object"},
+    "baseline_environment_id": {"type": "string", "minLength": 1}
+  }
+}
+

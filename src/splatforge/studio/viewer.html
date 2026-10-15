@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SplatForge Studio</title><link rel="stylesheet" href="/viewer.css">
+</head>
+<body>
+<header><h1><span class="mark">◈</span>SplatForge <span class="studio">Studio</span></h1><span id="stage" class="badge">Connecting</span></header>
+<main class="layout">
+  <div>
+    <section class="panel">
+      <div class="panelhead"><label class="label" for="geometry">Scene</label><select id="geometry"><option value="cloud">Gaussian centers</option><option value="mesh">Mesh surface</option></select><button id="reset">Reset camera</button><button id="orbit-render">Render orbit</button></div>
+      <div class="orbit"><canvas id="scene" aria-label="Interactive 3D scene"></canvas><span class="hint">Drag to orbit · Scroll to zoom</span></div>
+    </section>
+    <section class="panel spaced">
+      <div class="panelhead"><span class="label">Rendered view</span><span id="method"></span></div>
+      <div class="controls"><label for="view">Camera</label><input id="view" type="number" min="0" value="0"><select id="mode" aria-label="Render channel"><option value="rgb">Color</option><option value="normal">Normals</option><option value="depth">Depth</option></select><button id="render">Render</button></div>
+      <div class="render"><img id="image" alt="Select a camera and render a view"></div><div id="error" role="status"></div>
+    </section>
+  </div>
+  <aside>
+    <section class="panel">
+      <div class="panelhead"><span class="label">Training</span></div>
+      <div class="stats"><div><span class="label">Step</span><div id="step" class="value">—</div></div><div><span class="label">Gaussians</span><div id="count" class="value">—</div></div><div><span class="label">Loss</span><div id="loss" class="value">—</div></div><div><span class="label">Preview vertices</span><div id="preview" class="value">—</div></div></div>
+      <canvas id="chart" class="chart" aria-label="Training loss"></canvas><p>Live checkpoint preview. Rendering uses the backend recorded in the run configuration.</p>
+    </section>
+    <section class="panel spaced"><div class="panelhead"><span class="label">Mesh export</span></div><div id="export">Awaiting export.</div></section>
+  </aside>
+</main>
+<div class="footer">Local viewer · Experimental methods · Scene and run components are independently extensible.</div>
+<script src="/viewer.js"></script>
+</body>
+</html>

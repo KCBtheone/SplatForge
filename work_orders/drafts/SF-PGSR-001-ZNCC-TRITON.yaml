@@ -1,0 +1,185 @@
+schema_version: 1
+task_id: SF-PGSR-001-ZNCC-TRITON
+status: draft_not_executable
+
+blocking_requirements:
+  - Phase 0 registry, schemas, conformance harness and protected-path gate exist
+  - every blocking question in docs/reimplementations/pgsr/SPEC_REVIEW_QUESTIONS.md is resolved in the frozen contract
+  - exact trusted base commit is recorded
+  - OpSpec, reference, tests, tolerances and benchmark are frozen on the protected branch
+  - every frozen input has a content digest
+  - exact toolchain and official-documentation snapshots are pinned
+  - trusted performance and memory baselines exist
+  - aggregate implementation-packet digest is recorded
+  - all TBD values in this file are replaced and independently validated
+
+base_commit: TBD_EXACT_TRUSTED_COMMIT
+packet_digest: TBD_SHA256
+packet_digest_algorithm: splatforge-packet-payload-v1
+packet_digest_excludes:
+  - WORK_ORDER.yaml
+  - PACK_MANIFEST.json
+op_id: matching.patch_zncc@1
+op_spec_revision: TBD_SHA256
+implementation_id: splatforge.triton.matching.patch_zncc.s49.v1
+goal: Implement the Triton forward and first-order backward provider for the frozen matching.patch_zncc@1 contract and only its declared CUDA support cells.
+
+network_mode: "off"
+fresh_context_required: true
+inherit_current_conversation: false
+context_inventory_required: true
+tool_access_log_required: true
+
+non_goals:
+  - inspect, reproduce or compare against the PGSR repository
+  - use historical SplatAtlasVol raw plane_depth records as spec, golden, oracle, tolerance evidence or baseline
+  - implement patch warping, homography, rasterization, training or mesh extraction
+  - change public API or mathematical semantics
+  - add an approximate NCC variant
+  - add or update dependencies
+  - alter provider-selection policy
+  - claim that PGSR or a reconstruction pipeline is implemented
+
+supported_cells:
+  device:
+    - cuda
+  sample_count:
+    - 49
+  input_dtype:
+    - float16
+    - float32
+  accumulation_dtype: float32
+  score_dtype: float32
+  input_layout: last_dimension_contiguous
+  mask_dtype: bool
+  autograd: first_order_vjp
+  second_order: explicit_unsupported_error
+  deterministic: true_within_exact_implementation_and_environment
+
+allowed_paths:
+  - src/splatforge/providers/triton/matching/**
+  - tests/provider_private/triton/matching/**
+  - self_reports/SF-PGSR-001-ZNCC-TRITON/**
+
+forbidden_paths:
+  - specs/**
+  - provenance/**
+  - work_orders/**
+  - src/splatforge/core/**
+  - src/splatforge/providers/torch/**
+  - tests/conformance/**
+  - tests/properties/**
+  - tests/gradients/**
+  - tests/tolerances/**
+  - benchmarks/definitions/**
+  - benchmarks/baselines/**
+  - tools/schemas/**
+  - tools/quality/**
+  - .github/**
+  - pyproject.toml
+
+frozen_inputs:
+  spec:
+    path: specs/matching/patch_zncc/
+    digest: TBD_SHA256
+  reference:
+    path: src/splatforge/providers/torch/matching/patch_zncc.py
+    digest: TBD_SHA256
+  conformance:
+    path: tests/conformance/matching/patch_zncc/
+    digest: TBD_SHA256
+  properties:
+    path: tests/properties/matching/patch_zncc/
+    digest: TBD_SHA256
+  gradients:
+    path: tests/gradients/matching/patch_zncc/
+    digest: TBD_SHA256
+  tolerances:
+    path: tests/tolerances/matching.patch_zncc.yaml
+    digest: TBD_SHA256
+  benchmark_definition:
+    path: benchmarks/definitions/matching.patch_zncc.yaml
+    digest: TBD_SHA256
+  trusted_baseline:
+    path: benchmarks/baselines/TBD_ENVIRONMENT_ID/matching.patch_zncc.json
+    digest: TBD_SHA256
+  source_policy:
+    path: implementation_packet/SOURCE_POLICY.yaml
+    digest: TBD_SHA256
+  environment_lock:
+    path: implementation_packet/environment/lock.json
+    digest: TBD_SHA256
+
+source_policy:
+  default: deny_unlisted
+  target_paper_available_to_implementation_agent: false
+  target_source_available_to_implementation_agent: false
+  allowed_material:
+    - local frozen SplatForge implementation packet identified by packet_digest
+    - exact offline official-documentation snapshots listed in SOURCE_POLICY.yaml
+  denied_material:
+    - PGSR source, forks, mirrors, diffs, issues, discussions and source-derived summaries
+    - diff-plane-rasterization and diff-gaussian-rasterization source or binaries
+    - original 3DGS rasterizer source or source-derived summaries
+    - Gaussian Wrapping target implementation
+    - gsplat or third-party target reimplementations
+    - target binaries, PTX, cubin, SASS, disassembly, symbols, traces and intermediate buffers
+    - external snippets, blogs, forums or unlisted LLM answers
+
+required_commands:
+  - validate packet and frozen-input digests using trusted tooling
+  - validate changed paths against the protected work order
+  - run conformance tests with exact implementation_id fixed
+  - run property tests with exact implementation_id fixed
+  - run first-order gradient differential tests
+  - run provider rejection and no-silent-fallback tests
+  - run declared compile and fake/meta tests
+  - run GPU sanitizer suite over empty, tail and maximum-index cases
+  - run frozen benchmark against the trusted baseline
+
+required_self_reports:
+  - environment.self_reported.json
+  - context_inventory.json
+  - tool_access_log.json
+  - conformance.self_reported.json
+  - properties.self_reported.json
+  - gradients.self_reported.json
+  - compile.self_reported.json
+  - sanitizer.self_reported.json
+  - benchmark.self_reported.json
+  - known_limitations.md
+
+acceptance:
+  correctness_tolerances: TBD_FROZEN_TOLERANCE_FILE
+  performance_thresholds: TBD_FROZEN_BENCHMARK_DEFINITION
+  memory_thresholds: TBD_FROZEN_BENCHMARK_DEFINITION
+  gpu_safety:
+    - no out-of-bounds access
+    - no race, uninitialized read, synchronization misuse or illegal launch
+    - no hidden host synchronization
+    - current PyTorch CUDA stream is respected
+    - zero-sized batches do not launch an invalid kernel
+  architecture:
+    - no changes outside allowed_paths
+    - no new dependency or public concept
+    - no silent cast, copy, layout conversion, detach, device move or fallback
+
+automatic_failure:
+  - any protected or unlisted path changes
+  - any test, tolerance or baseline is deleted, skipped, xfailed, weakened or changed
+  - an unsupported fixed-provider cell silently falls back
+  - a required forward or backward cell is wrong or missing
+  - sanitizer failure, crash, hang or violated determinism declaration
+  - benchmark lacks exact implementation identity or raw measurements
+  - an unapproved dependency or source is used
+  - any denied target implementation material is accessed
+
+stop_conditions:
+  - contract, reference or tests appear inconsistent
+  - a required behavior is unspecified
+  - correctness requires changing a frozen file
+  - implementation requires an unapproved dependency or source
+  - denied source becomes visible
+  - packet or frozen-input digest does not match
+
+submission_prompt: docs/reimplementations/pgsr/IMPLEMENTER_HANDOFF_PROMPT.md

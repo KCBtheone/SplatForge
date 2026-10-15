@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splatforge.local/schemas/tolerance_table.schema.json",
+  "title": "SplatForge per-cell numerical tolerances",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "op", "status", "spec_revision", "cells", "calibration"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "op": {"type": "string", "minLength": 1},
+    "status": {"enum": ["draft", "frozen"]},
+    "spec_revision": {"type": "string", "minLength": 1},
+    "cells": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cell_id", "input_dtype", "case_class", "forward"],
+        "properties": {
+          "cell_id": {"type": "string", "minLength": 1},
+          "input_dtype": {"type": "string", "minLength": 1},
+          "case_class": {"type": "string", "minLength": 1},
+          "forward": {"$ref": "#/$defs/tolerance"},
+          "vjp": {"$ref": "#/$defs/tolerance"}
+        }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "rationale"],
+      "properties": {
+        "status": {"enum": ["unmeasured", "measured"]},
+        "environment_id": {"type": "string"},
+        "evidence_digest": {"type": "string"},
+        "rationale": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {
+    "tolerance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["atol", "rtol"],
+      "properties": {
+        "atol": {"type": "number", "minimum": 0},
+        "rtol": {"type": "number", "minimum": 0}
+      }
+    }
+  }
+}
+

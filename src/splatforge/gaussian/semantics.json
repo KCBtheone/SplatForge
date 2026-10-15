@@ -1,0 +1,35 @@
+{
+  "revision": 3,
+  "maturity": "experimental",
+  "conventions": {
+    "coordinates": "OpenCV camera: x right, y down, z forward; world-to-camera matrices",
+    "pixels": "pixel centers (u+0.5,v+0.5)",
+    "quaternions": "wxyz, normalized in the covariance composition",
+    "tensors": "one device and floating dtype per call; no implicit device or dtype conversion",
+    "gradients": "Torch composition, piecewise gradients; selection, ordering and truncation boundaries are discrete",
+    "empty": "empty Gaussian sets produce transparent composites and zero opacity fields"
+  },
+  "operators": {
+    "gaussian.covariance@1": "R diag(scales^2) R^T. Inputs quats[N,4], scales[N,3]. Output covariance[N,3,3]. Positive scales are the caller's responsibility.",
+    "gaussian.regularized_ray_geometry@1": "Means[N,3], quats[N,4], positive scales[N,3], world_to_camera[4,4], K[3,3]; visible camera-z>0 inputs only. Apache port regularized ray-depth planes, with FOV-clamped u/v and C_reg=sym(C_camera)+max(absolute_jitter,relative_jitter*max(trace(C_camera),absolute_jitter))*I. Defaults 1e-8 and 1e-6. A float64 SPD Cholesky solve is an EXPLICIT internal precision choice; outputs preserve input dtype. Fixed tuple camera-center ray distance[N], plane slopes[N,2], camera-facing normals[N,3]. Fully differentiates these equations, including the jitter; no adjugate inverse or native approximate VJP. Stable variant, not a bitwise native backward or paper-equivalence claim.",
+    "gaussian.ray_peak@1": "For means[N,3], inverse_covariances[N,3,3], origins[P,3], directions[P,3]: t=-d^T Q(o-m)/(d^T Qd); response=exp(-0.5*(o+td-m)^T Q(o+td-m)); normal=normalize(-Qd). Outputs t[N,P], response[N,P], normals[N,P,3]. No camera-z conversion; directions need not be unit.",
+    "camera.pixel_rays@1": "K[3,3], positive width,height: inv(K)*(u+0.5,v+0.5,1). Output [height,width,3], unnormalized camera rays.",
+    "geometry.depth_normals@1": "Depth[H,W], K[3,3]. Backproject z-depth, centered finite differences, face normals toward camera. Output normals[H,W,3], valid[H,W] bool; borders and nonpositive neighbors invalid.",
+    "gaussian.sh_color@1": "Coefficients[N,(degree+1)^2,3], unit directions[N,3], degree 0..3. Real SH in gsplat/3DGS basis, color=max(0,0.5+SH). Output[N,3].",
+    "gaussian.sh_ambiguity@1": "Squared L2 norm of coefficients[N,K,3] excluding the DC band; output[N].",
+    "gaussian.ray_color_variance@1": "Weights[N,P], colors[N,3], composite[P,3]. sum_i stopgrad(w_i)*||c_i-stopgrad(composite)||^2. Output[P]. Only colors receive gradients.",
+    "splat.alpha_composite@1": "Front-to-back alphas[N,P], colors[N,3], depths[N,P], normals[N,P,3]. Alpha capped at 0.999. Weights=alpha*exclusive_cumprod(1-alpha). Fixed tuple: color numerator[P,3], alpha[P], z numerator[P], normal numerator[P,3], L1 pairwise depth distortion[P], L2 pairwise depth distortion[P], median depth[P], weights[N,P]. Median is first cumulative weight >=0.5; zero if never reached. Distortions include both (i,j) orders; L1 uses live weights sorted by sample depth for exact absolute differences; L2 uses detached weights as in the RaDe-GS paper.",
+    "splat.alpha_composite@2": "Explicit independent batch axis B. Inputs alphas[B,N,P], colors[B,N,3], depths[B,N,P], normals[B,N,P,3]. Same per-batch equations, tuple, stop-gradients and empty behavior as @1; all outputs have a leading B axis. Padding is valid only with zero alpha. Does not rely on torch.func, and is compatible with non-reentrant gradient checkpointing in Torch 2.1.",
+    "splat.alpha_composite@3": "Same independent B-axis compositing and gradients as @2. REQUIRED distortions attribute is none, l1, l2 or both. Only requested distortion terms are evaluated; omitted distortion tuple slots are zero placeholders, not physical zero-distortion claims. RGB, alpha, depth numerator, normal numerator, median and weights are identical to @2. In particular none/l2 do not sort sample depths. No changed support, sample cap or approximation.",
+    "gaussian.ray_color_variance@2": "Independent B batches of @1: weights[B,N,P], colors[B,N,3], composite[B,P,3], output[B,P]. Only colors receive gradients; weights and composite are detached.",
+    "gaussian.opacity_field@1": "Points[P,3], means[N,3], inverse_covariances[N,3,3], opacities[N], origins[C,3]. Along each normalized point ray evaluate each Gaussian at min(point distance, peak t), ignore peaks behind origin; O_view=1-product(1-alpha*G); output min_view O_view[P]. Requires >=1 origin, gaussians chunked without changing the field. No frustum masking.",
+    "matching.patch_zncc@1": "Patches A,B[...,S], valid[...,S] floating 0/1. Masked centered correlation, epsilon variance gate; fixed tuple correlation[...,], valid_patch[...] bool. Invalid patches have zero loss gradient. No image sampling or homography in this operator."
+  },
+  "sources": [
+    "https://arxiv.org/html/2406.01467v2",
+    "https://arxiv.org/html/2404.10772",
+    "https://arxiv.org/html/2605.12494v1",
+    "https://arxiv.org/html/2406.06521v2"
+  ],
+  "exclusions": "No claim of paper benchmark parity, official implementation equivalence, higher-order CUDA gradients or trusted release verification."
+}

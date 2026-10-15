@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splatforge.local/schemas/evidence_report.schema.json",
+  "title": "SplatForge conformance evidence report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "report_type",
+    "authority",
+    "generated_at",
+    "status",
+    "subject",
+    "environment",
+    "summary",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "report_id": {"type": "string", "minLength": 1},
+    "report_type": {"enum": ["conformance", "property", "gradient", "benchmark", "sanitizer"]},
+    "authority": {"enum": ["self_reported", "trusted_ci"]},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["passed", "failed", "blocked"]},
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_revision",
+        "artifact_digest",
+        "op",
+        "spec_revision",
+        "conformance_digest",
+        "implementation_id",
+        "build_fingerprint",
+        "snapshot_token"
+      ],
+      "properties": {
+        "repository_revision": {"type": "string", "minLength": 1},
+        "artifact_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "op": {"type": "string", "minLength": 1},
+        "spec_revision": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "reference_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "conformance_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "tolerance_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "benchmark_definition_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "implementation_id": {"type": "string", "minLength": 1},
+        "build_fingerprint": {"type": "string", "minLength": 1},
+        "snapshot_token": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["environment_id", "python", "torch", "platform"]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "failed", "blocked", "total"],
+      "properties": {
+        "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "blocked": {"type": "integer", "minimum": 0},
+        "total": {"type": "integer", "minimum": 0}
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "duration_ms"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "status": {"enum": ["passed", "failed", "blocked"]},
+          "duration_ms": {"type": "number", "minimum": 0},
+          "error": {"type": "object"}
+        }
+      }
+    }
+  }
+}
+

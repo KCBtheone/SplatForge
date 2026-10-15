@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splatforge.local/schemas/implementation_manifest.schema.json",
+  "title": "SplatForge implementation manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "implementation_id",
+    "provider",
+    "provider_api",
+    "op",
+    "op_spec_revision",
+    "implementation_version",
+    "lowering_target",
+    "static_variant_token",
+    "declared_eligibility",
+    "build"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "implementation_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]+$"
+    },
+    "provider": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "provider_api": {"const": 1},
+    "op": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+@[1-9][0-9]*$"
+    },
+    "op_spec_revision": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "implementation_version": {"type": "string", "minLength": 1},
+    "lowering_target": {"type": "string", "minLength": 1},
+    "static_variant_token": {"type": "string", "minLength": 1},
+    "priority": {"type": "integer"},
+    "declared_eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "devices",
+        "dtypes",
+        "layouts",
+        "backward",
+        "determinism_guarantee",
+        "host_synchronization",
+        "execution"
+      ],
+      "properties": {
+        "devices": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["cpu", "cuda", "meta"]}
+        },
+        "dtypes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "layouts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["contiguous", "strided_last_dim", "strided"]
+          }
+        },
+        "backward": {"type": "boolean"},
+        "backward_may_copy_grad_output": {"type": "boolean"},
+        "jvp": {"type": "boolean"},
+        "determinism_guarantee": {
+          "enum": ["none", "same_build_same_device", "bitwise"]
+        },
+        "host_synchronization": {"enum": ["none", "required"]},
+        "cuda_graph": {"type": "boolean"},
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["eager", "compile", "fake", "export"],
+          "properties": {
+            "eager": {"enum": ["supported", "unsupported"]},
+            "compile": {"enum": ["supported", "unsupported"]},
+            "fake": {"enum": ["supported", "unsupported"]},
+            "export": {"enum": ["supported", "unsupported"]}
+          }
+        },
+        "constraints": {"type": "object"}
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint", "artifact_digest"],
+      "properties": {
+        "fingerprint": {"type": "string", "minLength": 1},
+        "artifact_digest": {
+          "type": "string",
+          "pattern": "^(sha256:[0-9a-f]{64}|source-only)$"
+        },
+        "python": {"type": "string"},
+        "torch": {"type": "string"},
+        "cuda": {"type": "string"}
+      }
+    }
+  }
+}
+

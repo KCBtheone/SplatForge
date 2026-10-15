@@ -1,0 +1,14 @@
+schema_version: 1
+op: testing.scale_shift@1
+status: reviewed
+normative_sources:
+  - type: splatforge_owned_fixture
+    description: Elementary affine tensor arithmetic authored for the Phase 0 lifecycle test.
+source_exposure:
+  target_implementation_accessed: false
+  external_code_used: false
+license_review:
+  result: Apache-2.0-compatible
+  notes: No external implementation or paper material is used.
+patent_status: unreviewed
+

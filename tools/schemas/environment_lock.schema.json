@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://splatforge.local/schemas/environment_lock.schema.json",
+  "title": "SplatForge execution environment lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authority",
+    "captured_at",
+    "platform",
+    "python",
+    "packages",
+    "torch",
+    "gpus",
+    "environment_id"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "authority": {"enum": ["self_reported", "trusted_ci"]},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "release", "machine"],
+      "properties": {
+        "system": {"type": "string"},
+        "release": {"type": "string"},
+        "machine": {"type": "string"}
+      }
+    },
+    "python": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "implementation"],
+      "properties": {
+        "version": {"type": "string"},
+        "implementation": {"type": "string"}
+      }
+    },
+    "packages": {
+      "type": "object",
+      "additionalProperties": {"type": ["string", "null"]}
+    },
+    "torch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "cuda_runtime", "cuda_available"],
+      "properties": {
+        "version": {"type": "string"},
+        "cuda_runtime": {"type": ["string", "null"]},
+        "cuda_available": {"type": "boolean"},
+        "cudnn": {"type": ["integer", "null"]}
+      }
+    },
+    "gpus": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["index", "name", "compute_capability", "memory_total_mib", "driver"],
+        "properties": {
+          "index": {"type": "integer", "minimum": 0},
+          "name": {"type": "string"},
+          "compute_capability": {"type": "string"},
+          "memory_total_mib": {"type": "integer", "minimum": 0},
+          "driver": {"type": "string"}
+        }
+      }
+    },
+    "environment_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}
+

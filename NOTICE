@@ -1,0 +1,16 @@
+SplatForge
+Copyright 2026 SplatForge contributors
+
+This distribution contains original SplatForge source and independently
+expressed mathematical operators inspired by the papers listed in
+provenance/surface_methods.json and the companion package's SPEC.md.
+
+Optional integrations interoperate with gsplat, Copyright 2023 The Nerfstudio
+Team and contributors, and the Mollylulu gsplat_radegs port. Their source and
+binaries are not bundled. Preserve their applicable notices when installing
+or redistributing those dependencies.
+
+The companion's Unbiased Surfel mathematical method is attributed to Yixin
+Yang, Yang Zhou, and Hui Huang, "Introducing Unbiased Depth into 2D Gaussian
+Splatting for High-accuracy Surface Reconstruction", arXiv:2503.06587v3.
+Its separate NOTICE and SOURCE_POLICY.md remain applicable.
