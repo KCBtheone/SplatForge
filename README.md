@@ -1,68 +1,91 @@
 # SplatForge
 
-**An operator-first research prototype for geometry-oriented Gaussian Splatting.**
+**Reusable operators and a modular framework for Gaussian Splatting and 3D reconstruction research.**
 
-SplatForge explores how components from Gaussian Splatting papers can become
-reusable, testable operators. A small reconstruction framework provides a place
-to exercise those operators through shared data loading, training, checkpoints,
-evaluation, mesh export, and a local viewer.
+*Reproduce. Decompose. Recombine.*
 
-**Status: early prototype (`0.0.1a1`).** APIs and abstractions may change
-substantially. This preview makes the current implementation available while
-development continues. Paper benchmark parity, production readiness, and
-arbitrary cross-method compatibility have not been established.
+SplatForge is building a common toolbox for developing reconstruction methods.
+We start with geometry-oriented Gaussian Splatting: turn the geometry,
+rendering, and optimization components behind individual methods into
+operators that researchers can inspect, test, and reuse.
 
-## What is included
+The goal is to take an idea from one paper, bring it into another method, and
+evaluate the change within the same research workflow. As the foundations
+develop, we plan to extend the toolbox to more GS methods, multi-view stereo,
+and geometry processing.
 
-| Component | Current scope |
+**Current stage: early prototype (`0.0.1a1`).** This repository is the first
+public code preview of that direction. Interfaces are still evolving.
+
+## Why build this?
+
+Moving a depth constraint, densification rule, or surface extraction idea into
+a new method can require changes across its renderer, representation, trainer,
+and evaluation code. SplatForge aims to give those components explicit
+boundaries so that an experiment can focus on the idea being tested.
+
+Three goals guide the project:
+
+- **Reproduce:** exercise selected methods in a shared workflow and understand
+  their numerical behavior.
+- **Decompose:** expose useful components as operators with documented tensor
+  semantics and gradients.
+- **Recombine:** make it easier to replace components and test new combinations
+  across methods. Broad compatibility is a development goal.
+
+## What we are building
+
+| Layer | Purpose |
 | --- | --- |
-| Operator runtime | Versioned contracts, provider registration, explicit capabilities, dispatch explanations, and conformance tooling |
-| Gaussian operators | Covariance, ray intersections, spherical harmonics, depth normals, alpha compositing, depth distortion, color ambiguity, opacity fields, and patch ZNCC |
-| Surface Studio | Experimental RaDe-GS, AmbiSuR, and GOF recipes sharing a training and export workflow |
-| Independent companion | Unbiased Surfel and PGSR-style auxiliary operators in [`commercial_unbiased_gsplat/`](commercial_unbiased_gsplat/); separately installed and not registered Studio methods |
+| **Operator library** | Reusable geometry, rendering, matching, and optimization building blocks with explicit contracts and independently testable implementations |
+| **Research framework** | Shared scene loading, training, checkpoints, evaluation, visualization, and geometry export for exercising those building blocks |
+| **Method recipes** | Concrete combinations of representations, renderers, losses, and training schedules that test and inform the abstractions |
 
-RaDe-GS optionally uses a pinned external gsplat port. The Torch surface
-operators and the AmbiSuR/GOF compositions are experimental implementations.
-The companion includes its own source policy and tensor specification. The
-preview contains source, tests, and documentation; experimental inputs,
-checkpoints, scan outputs, and model weights are not part of the distribution.
-
-## Install
-
-Use Python 3.10 or later in a dedicated environment. Install a PyTorch build
-appropriate for your machine first, then install the Studio dependencies:
-
-```bash
-git clone https://github.com/KCBtheone/SplatForge.git
-cd SplatForge
-python -m pip install -e '.[studio]'
-splatforge methods
+```mermaid
+flowchart TB
+    Methods["GS method recipes"] --> Framework["Shared reconstruction framework"]
+    Framework --> Operators["Reusable operators"]
+    Operators --> Providers["PyTorch and optional CUDA implementations"]
+    Future["Planned: more GS, MVS, geometry processing"] -.-> Framework
 ```
 
-Release wheels are also available on the
-[Releases page](https://github.com/KCBtheone/SplatForge/releases).
-The default wheel contains Python code and CUDA source for an optional JIT
-extension; it does not contain prebuilt CUDA binaries or third-party renderers.
+The longer-term ambition is a reconstruction toolbox where a new method can
+reuse existing infrastructure and contribute useful components back to the
+library. Geometry GS is the starting point for building and testing it.
 
-## Try the workflow on CPU
+## From this prototype to a reconstruction toolbox
 
-```bash
-splatforge demo --output demo-data --width 24 --points 48
-sf-train gof --data demo-data --output outputs/demo --device cpu --backend torch \
-  --steps 3 --set data.downscale=1 --set data.init_points=48 \
-  --set model.opacity=0.7 --set densify.enabled=false \
-  --set loss.geometric_start=0 --set train.export_on_finish=false
-sf-export --run outputs/demo --device cpu \
-  --set export.alpha_min=0.1 --set export.truncation=0.15
-sf-viewer --run outputs/demo --device cpu
-```
+| Stage | Focus |
+| --- | --- |
+| **Now — feasibility** | Implement selected methods and operators, test their behavior, and explore which abstractions support reuse |
+| **Next — framework and operator library** | Develop a usable GS research framework, a documented operator set, extension examples, and validated execution backends |
+| **Later — broader reconstruction tooling** | Extend to additional GS methods, selected MVS components, and point-cloud and mesh processing |
 
-The demo starts from an analytic sphere and generated images. It checks the
-workflow and file formats; it is not evidence of reconstruction accuracy.
-The commands above use Bash line continuation. In PowerShell, put each command
-on one line or use a backtick for continuation.
+These are development goals. The current prototype is the starting point.
+See the [roadmap](docs/ROADMAP.md) for what each stage is intended to deliver.
 
-## Use an operator directly
+## Explore the code
+
+The current source includes three experimental Studio recipes and an
+independent companion containing Unbiased Surfel and PGSR-style auxiliaries.
+
+| Source | Start here |
+| --- | --- |
+| [Gaussian operators](src/splatforge/gaussian/) | Versioned entry points and [tensor contracts](src/splatforge/gaussian/semantics.json) |
+| [Torch providers](src/splatforge/providers/torch/gaussian/) | Covariance, ray geometry, SH, compositing, depth distortion, ambiguity, opacity fields, and patch ZNCC |
+| [Method recipes](src/splatforge/studio/methods/) | RaDe-GS, AmbiSuR, and GOF configurations and pipeline factories |
+| [Studio](src/splatforge/studio/) | Data, representations, training, resume, evaluation, viewer, and exporters |
+| [Core runtime](src/splatforge/core/) | Contracts, registries, provider capabilities, dispatch, and execution policy |
+| [Mesh utilities](src/splatforge/mesh/) | Tetrahedral extraction and geometry I/O |
+| [Independent companion](commercial_unbiased_gsplat/) | Unbiased Surfel and PGSR-style operators, installed separately from Studio |
+| [Tests](tests/) | Operator behavior, gradients, component integration, and synthetic workflows |
+
+RaDe-GS optionally integrates a pinned gsplat port. AmbiSuR and GOF use
+experimental paper-derived Torch compositions. The companion is not registered
+as additional Studio methods. Scope and source details are in the
+[Studio guide](docs/studio/PUBLIC_GUIDE.md) and [dependency notes](THIRD_PARTY.md).
+
+## Try an operator
 
 ```python
 import torch
@@ -79,6 +102,46 @@ Operator contracts are recorded in
 [`semantics.json`](src/splatforge/gaussian/semantics.json).
 The runtime rejects unsupported calls explicitly; backend substitutions are
 not hidden behind the API.
+
+## Run from source
+
+Use Python 3.10 or later in a dedicated environment. Install a PyTorch build
+appropriate for your machine, then clone and install the source:
+
+```bash
+git clone https://github.com/KCBtheone/SplatForge.git
+cd SplatForge
+python -m pip install -e '.[studio]'
+splatforge methods
+```
+
+To exercise the shared workflow on a small CPU example:
+
+```bash
+splatforge demo --output demo-data --width 24 --points 48
+sf-train gof --data demo-data --output outputs/demo --device cpu --backend torch \
+  --steps 3 --set data.downscale=1 --set data.init_points=48 \
+  --set model.opacity=0.7 --set densify.enabled=false \
+  --set loss.geometric_start=0 --set train.export_on_finish=false
+sf-export --run outputs/demo --device cpu \
+  --set export.alpha_min=0.1 --set export.truncation=0.15
+sf-viewer --run outputs/demo --device cpu
+```
+
+The demo uses an analytic sphere and generated images to exercise the workflow.
+The commands use Bash line continuation; in PowerShell, put each command on
+one line or use a backtick for continuation.
+
+## Development status
+
+The prototype includes local tests and CPU CI for operators and synthetic
+workflows. Paper benchmark parity, real-scene quality acceptance, and arbitrary
+cross-method compatibility are not established by those checks. Accelerated
+backends require their own numerical and performance validation.
+
+The [source preview](https://github.com/KCBtheone/SplatForge/releases/tag/v0.0.1a1)
+provides a versioned code snapshot and validation record. Optional installable
+packages are available there as a convenience.
 
 ## Documentation and development
 
