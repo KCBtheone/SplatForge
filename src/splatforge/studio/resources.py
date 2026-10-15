@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import time
 from pathlib import Path
@@ -11,7 +12,9 @@ import torch
 
 def capacity(config):
     data_disk = Path("/root/autodl-tmp")
-    if not data_disk.is_dir():
+    # Unlike Path.is_dir on Python 3.10-3.12, os.path.isdir treats an
+    # inaccessible /root on ordinary Linux accounts as an unavailable path.
+    if not os.path.isdir(data_disk):
         return {"allowed": True, "policy": "local-no-autodl-gate"}
     output = Path(config.train.output).resolve()
     if not output.is_relative_to(data_disk.resolve()):

@@ -30,13 +30,17 @@ def _gpus() -> list[dict[str, Any]]:
         "--query-gpu=index,name,compute_cap,memory.total,driver_version",
         "--format=csv,noheader,nounits",
     ]
-    completed = subprocess.run(
-        command,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except OSError:
+        # CPU-only hosts need not install NVIDIA management utilities.
+        return []
     if completed.returncode != 0:
         return []
     records: list[dict[str, Any]] = []

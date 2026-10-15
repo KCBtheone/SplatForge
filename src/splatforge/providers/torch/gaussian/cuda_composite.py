@@ -26,7 +26,7 @@ def extension():
                 "set explicit task-owned TORCH_EXTENSIONS_DIR before CUDA build"
             )
         build = Path(root).resolve() / "selected_composite_v1"
-        if Path("/root/autodl-tmp").exists() and not build.is_relative_to(
+        if os.path.isdir("/root/autodl-tmp") and not build.is_relative_to(
             Path("/root/autodl-tmp")
         ):
             raise ValueError("CUDA build must remain on the AutoDL data disk")
