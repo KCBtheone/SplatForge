@@ -65,7 +65,11 @@ def copy_file(source: Path, target: Path) -> None:
 def copy_tree(source: Path, target: Path, *, excludes=()) -> None:
     for entry in sorted(source.rglob("*")):
         relative = entry.relative_to(source)
-        if SKIP_PARTS.intersection(relative.parts) or entry.suffix in SKIP_SUFFIXES:
+        if (
+            SKIP_PARTS.intersection(relative.parts)
+            or any(part.endswith(".egg-info") for part in relative.parts)
+            or entry.suffix in SKIP_SUFFIXES
+        ):
             continue
         if relative.as_posix() in excludes or entry.name in excludes:
             continue

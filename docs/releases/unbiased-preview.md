@@ -14,6 +14,7 @@ provide a complete public reproduction of either paper.
 Install PyTorch first. From this directory:
 
 ```bash
+python -m pip install 'setuptools>=69' wheel
 python -m pip install --no-deps --no-build-isolation -e .
 python -m unittest discover -s tests -v
 ```

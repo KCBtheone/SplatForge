@@ -19,7 +19,7 @@ jobs:
       - name: Install CPU environment
         run: |
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install -e '.[studio,test]' build
+          python -m pip install -e '.[studio,test]' build wheel 'setuptools>=77'
       - name: Runtime, operators, and Studio tests
         run: python tools/quality/run_phase0_checks.py
       - name: Companion synthetic tests
