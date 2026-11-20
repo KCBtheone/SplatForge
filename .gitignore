@@ -10,5 +10,7 @@ dist/
 benchmarks/results/**/*.local.json
 environment/*.local.json
 .splatforge/
+src/splatforge/mesh/_geometry_native*.pyd
+src/splatforge/mesh/_geometry_native*.so
 demo-data/
 outputs/

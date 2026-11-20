@@ -14,6 +14,7 @@ import torch.nn.functional as F
 
 from ..gaussian import SurfaceOperators
 from ..providers.torch.gaussian.reference import rotation_matrix
+from .cameras import Camera
 from .plugins import ComponentRegistry
 
 
@@ -67,6 +68,35 @@ class RenderOutput:
     projected_radii: torch.Tensor | None = None
     normal_numerator: torch.Tensor | None = None
     distortion_profile: str = "both"
+    camera: Camera | None = None
+    gaussian_rows: torch.Tensor | None = None
+
+    def bind_inputs(self, camera: Camera, gaussian_rows: torch.Tensor) -> RenderOutput:
+        if self.camera is not None and self.camera is not camera:
+            raise ValueError("render output belongs to a different pixel grid")
+        if self.gaussian_rows is not None and self.gaussian_rows is not gaussian_rows:
+            raise ValueError("render output belongs to a different Gaussian layout")
+        self.camera = camera
+        self.gaussian_rows = gaussian_rows
+        return self
+
+
+@dataclass(frozen=True)
+class RenderRequest:
+    """Maps on the supplied Camera grid and the outputs used in backward."""
+
+    maps: tuple[tuple[str, int], ...]
+    differentiable: tuple[str, ...]
+
+    def validate(self, result: RenderOutput, camera: Camera) -> None:
+        if result.camera is not camera:
+            raise ValueError("render output belongs to a different pixel grid")
+        for name, channels in self.maps:
+            value = getattr(result, name)
+            if value is None or value.shape != (camera.height, camera.width, channels):
+                raise ValueError(f"renderer must provide {name} on the requested pixel grid")
+            if torch.is_grad_enabled() and name in self.differentiable and not value.requires_grad:
+                raise RuntimeError(f"renderer output {name} must support backward")
 
 
 class Renderer(Protocol):
@@ -113,6 +143,10 @@ class TorchRenderer:
         self.mode = mode
         self.trunc_sigma = trunc_sigma
         self.ops = ops or SurfaceOperators()
+
+    @property
+    def provides_rade_normal_numerator(self):
+        return self.mode == "radegs"
 
     def render(self, scene, camera, *, selected=None):
         config = self.config
@@ -213,6 +247,8 @@ class TorchRenderer:
                 "ambiguity_mask",
             )
         }
+        if self.mode in ("gof", "radegs"):
+            images["normal_numerator"] = []
         for top in range(0, camera.height, tile):
             row = {name: [] for name in images}
             height = min(tile, camera.height - top)
@@ -298,7 +334,8 @@ class TorchRenderer:
                 )
                 alphas = opacity[indices, None] * response
                 rgb, alpha, znum, nnum, l1, l2, median, weights = ops(
-                    "splat.alpha_composite@1", alphas, colors[indices], depth, normals
+                    "splat.alpha_composite@1", alphas, colors[indices], depth, normals,
+                    detach_l1_weights=self.mode == "gof",
                 )
                 expected = znum / alpha.clamp_min(1e-8)
                 if self.mode == "ambisur":
@@ -342,6 +379,8 @@ class TorchRenderer:
                     "ray_color": ray_color[:, None],
                     "ambiguity_mask": ambiguity[:, None],
                 }
+                if self.mode in ("gof", "radegs"):
+                    values["normal_numerator"] = nnum
                 for name, value in values.items():
                     row[name].append(value.reshape(height, width, -1))
             for name in row:
@@ -350,6 +389,8 @@ class TorchRenderer:
             **{name: torch.cat(value, 0) for name, value in images.items()},
             projected_means=means2d,
             projected_radii=radii,
+            camera=camera,
+            gaussian_rows=scene.means,
         )
 
 
@@ -364,6 +405,31 @@ def _batched_factory(config, **kwargs):
 
 
 renderers.register("torch-batched", _batched_factory)
+
+
+def _ambisur_center_layout_factory(config, **kwargs):
+    from .ambisur_events import CenterLayoutEvents
+
+    if kwargs.get("mode") != "ambisur":
+        raise ValueError("center-layout event backend implements AmbiSuR only")
+    renderer = _batched_factory(config, **kwargs)
+    renderer.ambisur_event_producer = CenterLayoutEvents()
+    return renderer
+
+
+renderers.register("torch-batched-ambisur", _ambisur_center_layout_factory)
+
+
+def _ambisur_aten_factory(config, **kwargs):
+    from .ambisur_aten import AtenCenterLayoutEvents, AtenCompositeOperators
+
+    renderer = _ambisur_center_layout_factory(config, **kwargs)
+    renderer.ambisur_event_producer = AtenCenterLayoutEvents()
+    renderer.ops = AtenCompositeOperators(renderer.ops)
+    return renderer
+
+
+renderers.register("torch-batched-ambisur-aten", _ambisur_aten_factory)
 
 
 def _cuda_composite_factory(config, **kwargs):
@@ -386,6 +452,26 @@ def _cuda_composite_factory(config, **kwargs):
 renderers.register("torch-batched-cuda-composite", _cuda_composite_factory)
 
 
+def _cuda_binned_composite_factory(config, **kwargs):
+    renderer = _cuda_composite_factory(config, **kwargs)
+    renderer.cuda_binning = True
+    return renderer
+
+
+renderers.register("cuda-binned-torch-composite", _cuda_binned_composite_factory)
+
+
+def _cuda_binned_events_factory(config, **kwargs):
+    if kwargs.get("mode") not in ("gof", "ambisur"):
+        raise ValueError("fused event backend implements GOF and AmbiSuR only")
+    renderer = _cuda_binned_composite_factory(config, **kwargs)
+    renderer.cuda_events = True
+    return renderer
+
+
+renderers.register("cuda-binned-events-composite", _cuda_binned_events_factory)
+
+
 def _compiled_factory(config, **kwargs):
     from .batched_renderer import BatchedTorchRenderer
 
@@ -393,6 +479,42 @@ def _compiled_factory(config, **kwargs):
 
 
 renderers.register("torch-compiled", _compiled_factory)
+
+
+def _native_radegs_tile_factory(config, **kwargs):
+    if kwargs.get('mode') != 'radegs':
+        raise ValueError('native tile implements the declared RaDe-GS equations only')
+    from ..providers.torch.gaussian.radegs_tile_cuda import render_tile
+    renderer = _batched_factory(config, **kwargs)
+    renderer.native_radegs_tile = render_tile
+    return renderer
+
+
+renderers.register('torch-native-radegs-tile', _native_radegs_tile_factory)
+
+
+def _live_support_radegs_factory(config, **kwargs):
+    if kwargs.get('mode') != 'radegs':
+        raise ValueError('live support native tile requires declared RaDe-GS equations')
+    from ..providers.torch.gaussian.radegs_tile_cuda import render_live_support_tile
+    renderer = _batched_factory(config, **kwargs)
+    renderer.native_radegs_tile = render_live_support_tile
+    return renderer
+
+
+renderers.register('torch-native-radegs-live-support', _live_support_radegs_factory)
+
+
+def _original_primal_native_factory(config, **kwargs):
+    if kwargs.get('mode') != 'radegs':
+        raise ValueError('original primal/native pullback requires declared RaDe-GS equations')
+    from ..providers.torch.gaussian.radegs_tile_cuda import render_original_primal_native_pullback
+    renderer = _batched_factory(config, **kwargs)
+    renderer.native_primal_pullback = render_original_primal_native_pullback
+    return renderer
+
+
+renderers.register('torch-original-primal-native-pullback', _original_primal_native_factory)
 
 
 def _gsplat_rade_factory(config, *, mode, trunc_sigma, ops):
@@ -413,7 +535,11 @@ def _gsplat_rade_moment_factory(config, *, mode, trunc_sigma, ops):
 
     if mode != "radegs":
         raise ValueError("native RaDe-GS moment backend only supports RaDe-GS")
-    return GsplatRadeMomentRenderer(config, ops=ops)
+    return GsplatRadeMomentRenderer(
+        config, ops=ops, exact_basis_geometry=True, centered_l2=True, depth_xy_bridge=True,
+        ordered_adjoint_build_directory=getattr(config, "ordered_adjoint_build_directory", ""),
+        replay_transmittance=getattr(config, "replay_transmittance", False),
+    )
 
 
 renderers.register("gsplat-radegs-moments", _gsplat_rade_moment_factory)
@@ -430,6 +556,30 @@ def _gsplat_rade_stable_factory(config, *, mode, trunc_sigma, ops):
 renderers.register("gsplat-radegs-stable-moments", _gsplat_rade_stable_factory)
 
 
+def _gsplat_rade_cuda_stable_factory(config, *, mode, trunc_sigma, ops):
+    from ..integrations.gsplat_radegs_moments import GsplatRadeMomentRenderer
+
+    if mode != "radegs":
+        raise ValueError("fused stable RaDe-GS geometry only supports RaDe-GS")
+    return GsplatRadeMomentRenderer(
+        config, ops=ops, stable_geometry=True, cuda_geometry=True
+    )
+
+
+renderers.register(
+    "gsplat-radegs-cuda-stable-moments", _gsplat_rade_cuda_stable_factory
+)
+
+
+def _vcr_native_factory(config, **kwargs):
+    from .vcr_renderer import VCRNativeRenderer
+
+    return VCRNativeRenderer(config, **kwargs)
+
+
+renderers.register("vcr-native", _vcr_native_factory)
+
+
 def make_renderer(config, method, ops):
     return renderers.get(config.backend)(
         config,
@@ -437,3 +587,10 @@ def make_renderer(config, method, ops):
         trunc_sigma=method.config.loss.trunc_sigma,
         ops=ops,
     )
+
+
+def bind_configured_ordered_adjoint(renderer):
+    """Activate the configured owned ordered adjoint without a fallback."""
+    if getattr(renderer, "ordered_adjoint_build_directory", ""):
+        renderer.bind_ordered_adjoint()
+    return renderer

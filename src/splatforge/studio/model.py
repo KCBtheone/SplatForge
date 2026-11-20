@@ -55,10 +55,24 @@ class GaussianScene(nn.Module):
                 "sh": nn.Parameter(sh),
             }
         )
+        if config.paper_sh_lr_split:
+            # Ordinary Adam needs separate parameters for distinct learning
+            # rates. Scaling a gradient would also scale Adam's moments and
+            # would not implement the original DC/rest learning-rate ratio.
+            original_sh = self.params.pop("sh")
+            self.params["sh_dc"] = nn.Parameter(original_sh.detach()[:, :1].contiguous())
+            self.params["sh_rest"] = nn.Parameter(original_sh.detach()[:, 1:].contiguous())
         self.appearance = nn.Parameter(
             torch.zeros((n_views, 6), device=points.device, dtype=points.dtype),
             requires_grad=config.appearance,
         )
+        if config.paper_decoupled_appearance:
+            from ..integrations.radegs_appearance import DecoupledAppearance
+            # The CNN is initialized on CPU. Preserve both the original CPU
+            # Gaussian RNG stream and the untouched CUDA densification stream.
+            with torch.random.fork_rng(devices=[]):
+                self.decoupled_appearance = DecoupledAppearance(n_views)
+            self.decoupled_appearance.to(device=points.device,dtype=points.dtype)
 
     @property
     def means(self):
@@ -78,6 +92,8 @@ class GaussianScene(nn.Module):
 
     @property
     def sh(self):
+        if self.config.paper_sh_lr_split:
+            return torch.cat((self.params["sh_dc"], self.params["sh_rest"]), dim=1)
         return self.params["sh"]
 
     @property
@@ -96,6 +112,9 @@ class GaussianScene(nn.Module):
             "opacity_logits": train_config.opacity_lr,
             "sh": train_config.features_lr,
         }
+        if self.config.paper_sh_lr_split:
+            settings.pop("sh")
+            settings.update(sh_dc=train_config.features_lr, sh_rest=train_config.features_lr / 20)
         groups = [
             {"params": [self.params[name]], "lr": lr, "name": name}
             for name, lr in settings.items()
@@ -108,6 +127,13 @@ class GaussianScene(nn.Module):
                     "name": "appearance",
                 }
             )
+        if self.config.paper_decoupled_appearance:
+            module=self.decoupled_appearance
+            groups.extend([
+                {"params":list(module.embedding.parameters()),"lr":.001,"name":"appearance_embedding"},
+                {"params":list(module.upsample.parameters())+list(module.output.parameters()),
+                 "lr":.001,"name":"appearance_network"},
+            ])
         return groups
 
     def compensate(self, image, view_index):

@@ -11,10 +11,17 @@ from .data import DataManager
 from .densification import GaussianDensifier
 from .model import GaussianScene
 from .multiview import multiview_losses
-from .renderers import GaussianView, make_renderer
+from .renderers import (
+    GaussianView,
+    RenderOutput,
+    bind_configured_ordered_adjoint,
+    make_renderer,
+)
 
 
 class GaussianPipeline:
+    densifier_type = GaussianDensifier
+
     def __init__(self, config, method):
         self.config = config
         self.method = method
@@ -43,7 +50,9 @@ class GaussianPipeline:
             .detach()
             .clamp_min(1e-5)
         )
-        self.renderer = make_renderer(config.render, method, self.ops)
+        self.renderer = bind_configured_ordered_adjoint(
+            make_renderer(config.render, method, self.ops)
+        )
         origins = torch.stack(
             [self.data.frames[i].camera.origin for i in self.data.train_indices]
         ).to(points)
@@ -52,8 +61,11 @@ class GaussianPipeline:
             .clamp_min(1e-5)
             .detach()
         )
-        self.densifier = GaussianDensifier(
-            config.densify, self.model, extent=self.camera_extent
+        self.densifier = self.densifier_type(
+            config.densify, self.model, extent=self.camera_extent,
+            opacity_reset_max=getattr(
+                config.model, "opacity_reset_max", 0.01 if method.name == "radegs" else 0.1
+            ),
         )
 
     def parameters(self):
@@ -68,32 +80,43 @@ class GaussianPipeline:
         return groups
 
     def render(self, camera, *, selected=None):
-        return self.renderer.render(
-            GaussianView.from_model(self.model), camera, selected=selected
-        )
+        return self._render(self.renderer.render, camera, selected=selected)
+
+    def _render(self, renderer, camera, **kwargs):
+        view = GaussianView.from_model(self.model)
+        output = renderer(view, camera, **kwargs)
+        if isinstance(output, RenderOutput):
+            output.bind_inputs(camera, view.means)
+        return output
 
     def training_loss(self, sample, step):
+        if self.method.name == "radegs" and not getattr(
+            self.renderer, "provides_rade_normal_numerator", False
+        ):
+            raise RuntimeError(
+                "RaDe-GS training requires a renderer that provides raw normal_numerator"
+            )
         selection = self.method.selection(self.model, self.ops)
         rgb_only = getattr(self.renderer, "render_rgb", None)
+        camera = sample["camera"]
         if (
             rgb_only is not None
             and self.method.photometric_only(step)
             and not self.config.loss.multiview
         ):
-            output = rgb_only(
-                GaussianView.from_model(self.model),
-                sample["camera"],
-                selected=selection,
-            )
+            output = self._render(rgb_only, camera, selected=selection)
         elif hasattr(self.renderer, "render_training"):
-            output = self.renderer.render_training(
-                GaussianView.from_model(self.model),
-                sample["camera"],
+            output = self._render(
+                self.renderer.render_training,
+                camera,
                 selected=selection,
                 geometric=not self.method.photometric_only(step),
             )
         else:
-            output = self.render(sample["camera"], selected=selection)
+            output = self.render(camera, selected=selection)
+        request = getattr(self.method, "render_request", None)
+        if request is not None:
+            request(step).validate(output, camera)
         terms = self.method.losses(self, sample, output, step)
         terms.update(self.method.regularization(self, sample, output, step))
         terms.update(multiview_losses(self, sample, output, step))
@@ -136,8 +159,18 @@ class GaussianPipeline:
         from ..mesh.io import write_gaussians
 
         path = Path(output) / "gaussians.ply"
-        write_gaussians(path, self.model)
-        return {"kind": "gaussians", "count": self.model.count, "path": str(path)}
+        filter_state = (
+            getattr(self.renderer, "filter_state", None)
+            if self.method.name == "radegs" else None
+        )
+        write_gaussians(
+            path, self.model,
+            filter_sigma=filter_state.sigma if filter_state is not None else None,
+        )
+        return {
+            "kind": "gaussians", "count": self.model.count, "path": str(path),
+            "filter3d_baked": filter_state is not None,
+        }
 
     def state_dict(self):
         return {
@@ -155,6 +188,11 @@ class GaussianPipeline:
             )
         self.model.load_state_dict(model_state)
         self.densifier.load_state_dict(state["densifier"])
+        if (
+            self.densifier.gradient.shape != (self.model.count,)
+            or self.densifier.observations.shape != (self.model.count,)
+        ):
+            raise ValueError("checkpoint densification statistics do not match Gaussian layout")
         self.scene_scale = state["scene_scale"].to(self.model.device)
         if "camera_extent" in state:
             self.camera_extent = state["camera_extent"].to(self.model.device)

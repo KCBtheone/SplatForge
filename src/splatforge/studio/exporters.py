@@ -103,6 +103,9 @@ class GOFExporter:
 
 
 class TSDFExporter:
+    def intrinsics(self, camera):
+        return camera.K
+
     @torch.no_grad()
     def export(self, pipeline, path, config):
         if config.tsdf_backend == "open3d":
@@ -115,7 +118,8 @@ class TSDFExporter:
             sample = pipeline.data.sample(index, pipeline.model.device)
             render = pipeline.render(sample["camera"])
             views.append(
-                (sample["camera"], render.depth.detach(), render.alpha.detach())
+                (sample["camera"], self.intrinsics(sample["camera"]),
+                 render.depth.detach(), render.alpha.detach())
             )
 
         def field(coordinates):
@@ -128,12 +132,12 @@ class TSDFExporter:
                 )
                 accumulator = torch.zeros(len(world), device=world.device)
                 weight = torch.zeros_like(accumulator)
-                for camera, depth, alpha in views:
+                for camera, intrinsics, depth, alpha in views:
                     local = (
                         world @ camera.world_to_camera[:3, :3].T
                         + camera.world_to_camera[:3, 3]
                     )
-                    projected = local @ camera.K.T
+                    projected = local @ intrinsics.T
                     pixels = projected[:, :2] / projected[:, 2:3].clamp_min(1e-8)
                     observed = sample_image(depth, pixels).squeeze(-1)
                     confidence = sample_image(alpha, pixels).squeeze(-1)
@@ -215,13 +219,14 @@ class TSDFExporter:
                 depth_trunc=config.depth_max,
                 convert_rgb_to_intensity=False,
             )
+            k = self.intrinsics(camera)
             intrinsic = o3d.camera.PinholeCameraIntrinsic(
                 camera.width,
                 camera.height,
-                float(camera.K[0, 0]),
-                float(camera.K[1, 1]),
-                float(camera.K[0, 2]),
-                float(camera.K[1, 2]),
+                float(k[0, 0]),
+                float(k[1, 1]),
+                float(k[0, 2]),
+                float(k[1, 2]),
             )
             volume.integrate(rgbd, intrinsic, camera.world_to_camera.cpu().numpy())
             atomic_json(
@@ -261,9 +266,25 @@ class TSDFExporter:
         }
 
 
+class VCRTSDFExporter(TSDFExporter):
+    def intrinsics(self, camera):
+        from .vcr_renderer import centred_intrinsic
+
+        return centred_intrinsic(camera)
+
+
 exporters = ComponentRegistry("splatforge.exporters")
 exporters.register("gof", GOFExporter)
 exporters.register("tsdf", TSDFExporter)
+exporters.register("vcr-tsdf", VCRTSDFExporter)
+
+
+def _milo_exporter():
+    from .milo_export import MILoExporter
+    return MILoExporter()
+
+
+exporters.register("milo", _milo_exporter)
 
 
 @torch.no_grad()

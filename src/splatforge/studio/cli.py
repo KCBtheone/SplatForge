@@ -104,8 +104,6 @@ def main(argv=None):
         config.save(args.output)
         print(args.output)
     elif args.command == "train":
-        from .trainer import Trainer
-
         overrides = list(args.set)
         for name, value in (
             ("data.source", args.data),
@@ -120,18 +118,38 @@ def main(argv=None):
                     if isinstance(value, Path)
                     else f"{name}={value}"
                 )
-        config = load_config(args.config, method=args.method, overrides=overrides)
-        Trainer(config, resume=args.resume).run()
-    elif args.command == "export":
-        from .trainer import load_run
-        from .exporters import export_pipeline
+        config_path = args.config
+        if config_path is None and args.resume and args.output:
+            saved = args.output.expanduser() / "config.yaml"
+            if saved.is_file():
+                config_path = saved
+        config = load_config(config_path, method=args.method, overrides=overrides)
+        recipe = methods.get(config.method)
+        if hasattr(recipe, "train_run"):
+            recipe.train_run(config, resume=args.resume)
+        else:
+            from .trainer import Trainer
 
-        pipeline, _ = load_run(args.run, device=args.device)
+            Trainer(config, resume=args.resume).run()
+    elif args.command == "export":
+        run = args.run.expanduser()
         overrides = [f"export.kind={args.kind}"] if args.kind else []
         overrides += args.set
-        config = load_config(args.run / "config.yaml", overrides=overrides)
-        pipeline.config.export = config.export
-        print(json.dumps(export_pipeline(pipeline, args.run), indent=2))
+        config = load_config(run / "config.yaml")
+        recipe = methods.get(config.method)
+        if hasattr(recipe, "export_run"):
+            if any(not setting.startswith("export.") for setting in overrides):
+                raise ValueError("sf-export accepts export.* overrides for this method")
+            config = load_config(run / "config.yaml", overrides=overrides)
+            result = recipe.export_run(config, run, device=args.device)
+        else:
+            from .exporters import export_pipeline
+            from .trainer import load_run
+
+            pipeline, _ = load_run(run, device=args.device)
+            pipeline.config.export = load_config(run / "config.yaml", overrides=overrides).export
+            result = export_pipeline(pipeline, run)
+        print(json.dumps(result, indent=2))
     elif args.command == "eval":
         from .evaluation import evaluate_views, geometry_metrics
         from .artifacts import atomic_json

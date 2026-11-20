@@ -20,7 +20,7 @@ _OP_KEY_PATTERN = re.compile(
 _SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
-@dataclass(frozen=True, slots=True, order=True)
+@dataclass(frozen=True, order=True)
 class OpKey:
     namespace: str
     name: str
@@ -66,7 +66,7 @@ class SupportPredicate(Protocol):
     ) -> "SupportDecision": ...
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class OpDefinition:
     op_key: OpKey
     spec_revision: str
@@ -93,7 +93,7 @@ class OpDefinition:
         return normalized
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DeclaredEligibility:
     devices: tuple[str, ...]
     dtypes: tuple[str, ...]
@@ -108,7 +108,7 @@ class DeclaredEligibility:
     constraints: Mapping[str, Any] = field(default_factory=dict)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ImplementationManifest:
     schema_version: int
     implementation_id: str
@@ -172,7 +172,7 @@ class ImplementationManifest:
         return manifest
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class TensorMetadata:
     device: str
     device_type: str
@@ -237,7 +237,7 @@ def _static_value(value: Any) -> Any:
     )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CallSignature:
     op_key: OpKey
     spec_revision: str
@@ -302,7 +302,7 @@ class CallSignature:
         return canonical_json_digest(self.to_dict())
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SupportDecision:
     supported: bool
     reasons: tuple[str, ...] = ()
@@ -316,14 +316,14 @@ class SupportDecision:
         return cls(False, tuple(reasons))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RegisteredImplementation:
     manifest: ImplementationManifest
     runner: Runner
     support: SupportPredicate | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CapabilityRecord:
     implementation_id: str
     status: str
@@ -346,7 +346,7 @@ class CapabilityRecord:
             raise ValueError("invalid release tier")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CandidateEvaluation:
     implementation_id: str
     provider: str
@@ -368,7 +368,7 @@ class CandidateEvaluation:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DispatchExplanation:
     op_key: str
     spec_revision: str

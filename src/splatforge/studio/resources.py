@@ -1,29 +1,23 @@
-"""AutoDL capacity policy: 8 GiB GPU and 20 GiB data disk; no RAM gate."""
+"""Capacity checks for runs with a configured data root."""
 
 from __future__ import annotations
 
-import os
 import shutil
 import time
-from pathlib import Path
 
 import torch
 
+from .._paths import data_root, output_path
 
-def capacity(config):
-    data_disk = Path("/root/autodl-tmp")
-    # Unlike Path.is_dir on Python 3.10-3.12, os.path.isdir treats an
-    # inaccessible /root on ordinary Linux accounts as an unavailable path.
-    if not os.path.isdir(data_disk):
-        return {"allowed": True, "policy": "local-no-autodl-gate"}
-    output = Path(config.train.output).resolve()
-    if not output.is_relative_to(data_disk.resolve()):
-        raise ValueError(
-            "AutoDL output, logs and checkpoints must live under /root/autodl-tmp"
-        )
+
+def capacity(config, *, check_gpu=True):
+    data_disk = data_root()
+    if data_disk is None:
+        return {"allowed": True, "policy": "no-data-root"}
+    output_path(config.train.output)
     disk_free = shutil.disk_usage(data_disk).free
     gpu_free = None
-    if torch.device(config.train.device).type == "cuda":
+    if check_gpu and torch.device(config.train.device).type == "cuda":
         device = torch.device(config.train.device)
         index = (
             device.index if device.index is not None else torch.cuda.current_device()
@@ -41,9 +35,7 @@ def capacity(config):
 
 def wait_for_capacity(config, write_state, *, check_gpu=True):
     while True:
-        report = capacity(config)
-        if not check_gpu and "disk_free_bytes" in report:
-            report["allowed"] = report["disk_free_bytes"] >= report["disk_min_bytes"]
+        report = capacity(config, check_gpu=check_gpu)
         if report["allowed"]:
             return report
         write_state("WAIT_RESOURCE_GATE", capacity=report)

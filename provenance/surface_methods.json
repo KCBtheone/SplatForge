@@ -9,7 +9,7 @@
       "moment_backend": "gsplat-radegs-moments: native per-pixel geometry and weights, 9 polynomial moments for detached-weight L2; no L1 output",
       "stable_moment_backend": "gsplat-radegs-stable-moments: native RGB/conic projection and rasterization; explicitly differentiable float64 Cholesky ray-plane geometry. Same port regularization/FOV equations, not its approximate float32 VJP. New named operator contract; fresh training run required.",
       "stable_geometry_source": "https://github.com/Mollylulu/gsplat_radegs/blob/23b0f82551a938a05b5b99df06edf220b9305a51/gsplat/cuda/include/Utils.cuh",
-      "training_schedule": "RaDe-GS paper v2 section 4.1.1: first 15k photometric-only, next 15k geometric losses; previous 1k warmup was a recipe error and is retired",
+      "training_schedule": "RaDe-GS paper v2 section 4.1.1 uses 15k photometric-only iterations followed by 15k with geometric losses. The current Studio preset starts geometric supervision at iteration 7000 with depth distortion weight zero.",
       "rgb_only_optimization": "public native RGB path with identical colors/support; gated by value and parameter-gradient comparison, no replacement renderer",
       "dependency_mode": "optional, no vendored source",
       "submodules": "glm from g-truc/glm, permissive license; preserve upstream notices",
@@ -31,7 +31,8 @@
     "radegs_reference": "https://arxiv.org/html/2406.01467v2",
     "ambisur": "https://arxiv.org/html/2605.12494v1",
     "gof": "https://arxiv.org/html/2404.10772",
-    "multiview_geometry": "https://arxiv.org/html/2406.06521v2"
+    "multiview_geometry": "https://arxiv.org/html/2406.06521v2",
+    "vcrgaus": "https://arxiv.org/abs/2406.05774"
   },
   "shared_engine_correctness": {
     "ssim_layout": "Explicit NCHW contiguous pooling, unchanged forward values/window/dtype. Real Object1 directional VJPs and 20-update descent controls validate this workaround for the current Torch 2.1 CUDA layout path; not a statement about all Torch versions.",

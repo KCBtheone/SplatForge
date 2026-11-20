@@ -14,9 +14,9 @@ not capabilities already delivered.
 **Current stage: prototype and feasibility work.**
 
 Implement selected methods and operators to investigate their interface,
-gradient, and execution requirements. The public code currently includes
-RaDe-GS, AmbiSuR, and GOF Studio recipes, plus an independent Unbiased Surfel /
-PGSR-style auxiliary package.
+gradient, and execution requirements. Studio includes experimental RaDe-GS,
+AmbiSuR, GOF, and MILo recipes. The separate companion provides Unbiased Surfel
+and PGSR-style auxiliaries.
 
 Questions for this stage include:
 

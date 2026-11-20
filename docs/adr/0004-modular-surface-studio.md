@@ -3,10 +3,9 @@
 - Status: experimental implementation
 - Date: 2026-10-12
 
-The first useful application includes RaDe-GS, AmbiSuR and GOF. The user
-authorized direct integration of a permissively licensed gsplat RaDe-GS
-implementation and requested a modular framework comparable in workflow to
-SDFStudio, with room for other representations later.
+Studio began with RaDe-GS, AmbiSuR, and GOF. It uses a shared reconstruction
+workflow with separate recipe and provider interfaces so it can support
+additional representations.
 
 Keep the existing runtime neutral. Tensor operators live in domains and
 providers. Optional gsplat bindings live in integrations. A separate `studio`

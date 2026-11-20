@@ -28,7 +28,7 @@ from .policy import ExecutionPolicy
 from .registry import ImplementationRegistry, OpDefinitionRegistry
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RuntimeSnapshot:
     definition_generation: int
     implementation_generation: int
@@ -36,7 +36,7 @@ class RuntimeSnapshot:
     token: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ExecutionPlan:
     runtime: "Runtime"
     implementation: RegisteredImplementation

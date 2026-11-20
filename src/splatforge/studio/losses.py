@@ -42,9 +42,14 @@ def photometric_loss(prediction, target, ssim_weight):
     ).abs().mean() + ssim_weight * ssim_loss(prediction, target)
 
 
-def normal_consistency(output, camera, ops, mask):
+def normal_consistency(output, camera, ops, mask, *, normalize_numerator=False):
     normal, valid = ops("geometry.depth_normals@1", output.depth.squeeze(-1), camera.K)
     valid = valid & (output.alpha.squeeze(-1) > 0.1) & (mask.squeeze(-1) > 0)
+    if normalize_numerator:
+        if output.normal_numerator is None:
+            raise RuntimeError("Normalized RaDe normal requires raw normal_numerator")
+        direction = F.normalize(output.normal_numerator, dim=-1)
+        return masked_mean(1 - (direction * normal).sum(-1), valid)
     if output.normal_numerator is not None:
         # Sum_i w_i (1 - n_i dot n_depth), not normalization of sum_i w_i n_i.
         return masked_mean(

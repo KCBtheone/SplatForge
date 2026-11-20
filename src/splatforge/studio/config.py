@@ -38,6 +38,8 @@ class RenderConfig:
     antialiased: bool = False
     tile_batch_size: int = 64
     tile_event_budget: int = 1_048_576
+    ordered_adjoint_build_directory: str = ""
+    replay_transmittance: bool = False
 
 
 @dataclass
@@ -47,6 +49,8 @@ class ModelConfig:
     opacity: float = 0.1
     initial_scale: float = 1.0
     appearance: bool = False
+    paper_decoupled_appearance: bool = False
+    paper_sh_lr_split: bool = False
 
 
 @dataclass
@@ -54,6 +58,7 @@ class LossConfig:
     ssim: float = 0.2
     depth_distortion: float = 100.0
     normal: float = 0.05
+    radegs_normalize_numerator: bool = False
     geometric_start: int = 1000
     prior_depth: float = 0.1
     ambiguity_normal: float = 0.1
@@ -141,6 +146,14 @@ class StudioConfig:
     def validate(self):
         if not self.data.source:
             raise ValueError("data.source is required")
+        if type(self.loss.radegs_normalize_numerator) is not bool:
+            raise ValueError("radegs_normalize_numerator must be boolean")
+        if self.loss.radegs_normalize_numerator and self.method != "radegs":
+            raise ValueError("Normalized normal numerator is RaDe-only")
+        if self.model.paper_decoupled_appearance and (self.method != "radegs" or self.model.appearance):
+            raise ValueError("Paper decoupled appearance is RaDe-only and excludes the legacy affine path")
+        if self.model.paper_sh_lr_split and self.method not in ("radegs", "vcrgaus"):
+            raise ValueError("Split SH learning rates are supported by RaDe-GS and VCR-GauS")
         for name, value in (
             ("data.downscale", self.data.downscale),
             ("train.steps", self.train.steps),
@@ -168,7 +181,8 @@ class StudioConfig:
             raise ValueError("densification gradient_space must be ndc or pixel")
         if self.train.spatial_lr_scale not in ("camera-radius", "unit"):
             raise ValueError("spatial_lr_scale must be camera-radius or unit")
-        if not 0 < self.densify.grow_scale_fraction < self.densify.prune_scale_fraction:
+        grow, prune = self.densify.grow_scale_fraction, self.densify.prune_scale_fraction
+        if not 0 < grow <= prune or (grow == prune and self.method != "vcrgaus"):
             raise ValueError(
                 "densification scale fractions must be positive and ordered"
             )
@@ -236,7 +250,7 @@ def update_dataclass(target, values: dict[str, Any]):
 
 def load_config(
     path: str | Path | None = None, *, method: str | None = None, overrides=()
-) -> StudioConfig:
+):
     from .methods import methods
 
     content = yaml.safe_load(Path(path).read_text(encoding="utf-8")) if path else {}
@@ -258,4 +272,6 @@ def load_config(
                 raise ValueError(f"unknown configuration path {key}")
             owner = getattr(owner, part)
         update_dataclass(owner, {parts[-1]: yaml.safe_load(raw)})
+    if config.method != name:
+        raise ValueError("Select the method before applying configuration overrides")
     return config.validate()

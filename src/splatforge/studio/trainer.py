@@ -6,6 +6,7 @@ import json
 import random
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import numpy as np
 import torch
@@ -20,7 +21,9 @@ from .artifacts import (
 )
 from .evaluation import evaluate_views
 from .methods import methods
+from .._paths import output_path
 from .resources import wait_for_capacity
+from .step import StepContext, training_step
 
 
 def seed_all(seed):
@@ -55,6 +58,14 @@ def check_resume_configuration(current, stored):
     b = json.loads(json.dumps(stored))
     a = json.loads(json.dumps(a))
     for record in (a, b):
+        if not record["loss"].get("radegs_normalize_numerator", False):
+            record["loss"].pop("radegs_normalize_numerator", None)
+        # Absence of the new disabled option has the original semantics.
+        # Enabling it still requires its own model/network/optimizer checkpoint.
+        if not record["model"].get("paper_decoupled_appearance",False):
+            record["model"].pop("paper_decoupled_appearance",None)
+        if not record["model"].get("paper_sh_lr_split",False):
+            record["model"].pop("paper_sh_lr_split",None)
         for key in (
             "output",
             "device",
@@ -73,10 +84,47 @@ def check_resume_configuration(current, stored):
         )
 
 
+def optimizer_layout(pipeline, optimizer):
+    named_parameters = getattr(pipeline.model, "named_parameters", tuple)
+    names = {id(parameter): name for name, parameter in named_parameters()}
+    seen = set()
+    layout = []
+    for group in optimizer.param_groups:
+        parameters = []
+        for parameter in group["params"]:
+            identity = id(parameter)
+            if identity in seen:
+                raise ValueError("an optimizer parameter is registered more than once")
+            seen.add(identity)
+            parameters.append([names.get(identity), list(parameter.shape)])
+        layout.append([group.get("name"), parameters])
+    return layout
+
+
+def restore_optimizer(pipeline, optimizer, checkpoint):
+    saved = checkpoint["optimizer"]
+    current_layout = optimizer_layout(pipeline, optimizer)
+    stored_layout = checkpoint.get("optimizer_layout")
+    if stored_layout is not None and stored_layout != current_layout:
+        raise ValueError("checkpoint optimizer parameter names or layout changed")
+    saved_groups = saved["param_groups"]
+    if [(group.get("name"), len(group["params"])) for group in saved_groups] != [
+        (name, len(parameters)) for name, parameters in current_layout
+    ]:
+        raise ValueError("checkpoint optimizer groups changed")
+    for group, (_, parameters) in zip(saved_groups, current_layout):
+        for key, (_, shape) in zip(group["params"], parameters):
+            for name in ("exp_avg", "exp_avg_sq", "max_exp_avg_sq"):
+                moment = saved["state"].get(key, {}).get(name)
+                if moment is not None and list(moment.shape) != shape:
+                    raise ValueError("checkpoint Adam moment does not match parameter shape")
+    optimizer.load_state_dict(saved)
+
+
 class Trainer:
     def __init__(self, config, *, resume=None):
         self.config = config.validate()
-        self.root = Path(config.train.output).resolve()
+        self.root = output_path(config.train.output)
         self.resume = resume
         self.pipeline = None
         self.optimizer = None
@@ -84,8 +132,49 @@ class Trainer:
         self.order = []
         self.order_offset = 0
         self.manifest = None
+        self.next_stage = "train"
+        self._training_checkpoint = None
+        self._uncommitted_update = False
+
+    def _read_stage_progress(self):
+        try:
+            return json.loads((self.root / "state.json").read_text(encoding="utf-8")).get(
+                "progress", {}
+            )
+        except (FileNotFoundError, ValueError):
+            return {}
+
+    def _restore_stage_progress(self, checkpoint):
+        progress = checkpoint.get("progress", {})
+        if self.step < self.config.train.steps or not progress.get("training_checkpoint"):
+            return
+        self._training_checkpoint = progress["training_checkpoint"]
+        self.next_stage = "evaluate"
+        # Finalization does not modify the saved training state. The small
+        # atomic run record is bound to that checkpoint, avoiding another
+        # serialization of the model and Adam after evaluation and export.
+        recorded = self._read_stage_progress()
+        if recorded.get("training_checkpoint") != self._training_checkpoint:
+            return
+        if recorded.get("next_stage") in ("export", "complete"):
+            self.next_stage = "export"
+        if (
+            recorded.get("next_stage") == "complete"
+            and recorded.get("export_config") == self.config.to_dict()["export"]
+            and (self.root / "export.json").is_file()
+        ):
+            self.next_stage = "complete"
 
     def write_state(self, stage, **extra):
+        progress = {
+            "next_stage": self.next_stage,
+            "training_checkpoint": self._training_checkpoint,
+        }
+        if self.next_stage == "complete":
+            progress["export_config"] = self.config.to_dict()["export"]
+        if self.pipeline is None and self.resume:
+            # A capacity wait before setup must preserve finalization progress.
+            progress = self._read_stage_progress() or progress
         atomic_json(
             self.root / "state.json",
             {
@@ -93,6 +182,7 @@ class Trainer:
                 "step": self.step,
                 "method": self.config.method,
                 "updated": timestamp(),
+                "progress": progress,
                 **(self.pipeline.statistics() if self.pipeline else {}),
                 **extra,
             },
@@ -118,8 +208,9 @@ class Trainer:
             self.optimizer = torch.optim.Adam(
                 self.pipeline.parameter_groups(), eps=1e-15
             )
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
+            restore_optimizer(self.pipeline, self.optimizer, checkpoint)
             restore_random_state(checkpoint["random"])
+            self._restore_stage_progress(checkpoint)
         else:
             self.optimizer = torch.optim.Adam(
                 self.pipeline.parameter_groups(), eps=1e-15
@@ -148,7 +239,8 @@ class Trainer:
             "method and run configuration",
             state="READY",
         )
-        self.write_state("TRAINING")
+        if self.next_stage == "train":
+            self.write_state("TRAINING")
 
     def sample_index(self):
         if self.order_offset >= len(self.order):
@@ -165,8 +257,13 @@ class Trainer:
             "config": self.config.to_dict(),
             "pipeline": self.pipeline.state_dict(),
             "optimizer": self.optimizer.state_dict(),
+            "optimizer_layout": optimizer_layout(self.pipeline, self.optimizer),
             "random": random_state(),
             "sampler": {"order": self.order, "offset": self.order_offset},
+            "progress": {
+                "next_stage": self.next_stage,
+                "training_checkpoint": self._training_checkpoint,
+            },
         }
         directory = self.root / "checkpoints"
         path = directory / f"step_{self.step:08d}.pt"
@@ -202,6 +299,70 @@ class Trainer:
                 self.manifest.reclaim_checkpoint(old)
         return path
 
+    def _begin_update(self):
+        self._uncommitted_update = True
+
+    def _sample(self):
+        return self.pipeline.data.sample(self.sample_index(), self.config.train.device)
+
+    def _train(self):
+        settings = self.config.train
+        last_disk_check = time.monotonic()
+        step = getattr(getattr(self.pipeline, "method", None), "training_step", training_step)
+        with (self.root / "metrics.jsonl").open("a", encoding="utf-8") as handle:
+            while self.step < settings.steps:
+                if time.monotonic() - last_disk_check >= 60:
+                    self.checkpoint()
+                    wait_for_capacity(self.config, self.write_state, check_gpu=False)
+                    self.write_state("TRAINING")
+                    last_disk_check = time.monotonic()
+                # An overridden step may update persistent state at any point.
+                self._uncommitted_update = step is not training_step
+                result = step(StepContext(
+                    pipeline=self.pipeline,
+                    optimizer=self.optimizer,
+                    iteration=self.step,
+                    sample=self._sample,
+                    check_gradients=getattr(self, "gradient_finite_check", None),
+                    begin_update=self._begin_update,
+                ))
+                self.order_offset += 1
+                self.step += 1
+                self._uncommitted_update = False
+                if self.step == 1 or self.step % settings.log_every == 0 or self.step == settings.steps:
+                    row = {
+                        "step": self.step,
+                        "loss": float(result.loss),
+                        "terms": {key: float(value) for key, value in result.terms.items()},
+                        **self.pipeline.statistics(),
+                        "time": timestamp(),
+                    }
+                    handle.write(json.dumps(row, allow_nan=False) + "\n")
+                    handle.flush()
+                    self.write_state("TRAINING", loss=row["loss"])
+                    print(json.dumps(row, allow_nan=False), flush=True)
+                if settings.checkpoint_every > 0 and self.step % settings.checkpoint_every == 0:
+                    self.checkpoint()
+                if settings.eval_every > 0 and self.step % settings.eval_every == 0:
+                    evaluate_views(self.pipeline, self.root, save_renders=False)
+        self.next_stage = "evaluate"
+        self._training_checkpoint = uuid4().hex
+        self.checkpoint(final=True)
+        self.write_state("TRAINING_COMPLETE")
+
+    def _finalize(self):
+        if self.next_stage == "evaluate":
+            evaluate_views(self.pipeline, self.root)
+            self.next_stage = "export"
+            self.write_state("TRAINING_COMPLETE", export_pending=True)
+        if self.next_stage == "export" and self.config.train.export_on_finish:
+            from .exporters import export_pipeline
+
+            self.write_state("EXPORTING")
+            report = export_pipeline(self.pipeline, self.root)
+            self.next_stage = "complete"
+            self.write_state("COMPLETE", export=report)
+
     def run(self):
         self.root.mkdir(parents=True, exist_ok=True)
         with RunLock(self.root):
@@ -211,91 +372,20 @@ class Trainer:
                 )
             wait_for_capacity(self.config, self.write_state)
             self.setup()
-            last_disk_check = time.monotonic()
             try:
-                log = self.root / "metrics.jsonl"
-                with log.open("a", encoding="utf-8") as handle:
-                    while self.step < self.config.train.steps:
-                        if time.monotonic() - last_disk_check >= 60:
-                            self.checkpoint()
-                            wait_for_capacity(
-                                self.config, self.write_state, check_gpu=False
-                            )
-                            self.write_state("TRAINING")
-                            last_disk_check = time.monotonic()
-                        self.pipeline.model.train()
-                        self.optimizer.zero_grad(set_to_none=True)
-                        self.pipeline.update_learning_rates(self.step, self.optimizer)
-                        sample = self.pipeline.data.sample(
-                            self.sample_index(), self.config.train.device
-                        )
-                        loss, terms, render = self.pipeline.training_loss(
-                            sample, self.step
-                        )
-                        if not torch.isfinite(loss):
-                            raise FloatingPointError("non-finite training loss")
-                        loss.backward()
-                        if any(
-                            parameter.grad is not None
-                            and not torch.isfinite(parameter.grad).all()
-                            for parameter in self.pipeline.parameters()
-                        ):
-                            raise FloatingPointError("non-finite training gradient")
-                        self.pipeline.after_backward(render)
-                        self.optimizer.step()
-                        self.order_offset += 1
-                        self.step += 1
-                        self.pipeline.after_step(self.step, self.optimizer)
-                        if (
-                            self.step == 1
-                            or self.step % self.config.train.log_every == 0
-                            or self.step == self.config.train.steps
-                        ):
-                            row = {
-                                "step": self.step,
-                                "loss": float(loss.detach()),
-                                "terms": {
-                                    key: float(value.detach())
-                                    for key, value in terms.items()
-                                },
-                                **self.pipeline.statistics(),
-                                "time": timestamp(),
-                            }
-                            handle.write(json.dumps(row, allow_nan=False) + "\n")
-                            handle.flush()
-                            self.write_state("TRAINING", loss=row["loss"])
-                            print(json.dumps(row, allow_nan=False), flush=True)
-                        if (
-                            self.config.train.checkpoint_every > 0
-                            and self.step % self.config.train.checkpoint_every == 0
-                        ):
-                            self.checkpoint()
-                        if (
-                            self.config.train.eval_every > 0
-                            and self.step % self.config.train.eval_every == 0
-                        ):
-                            evaluate_views(self.pipeline, self.root, save_renders=False)
-                self.checkpoint(final=True)
-                self.write_state("TRAINING_COMPLETE")
-                evaluate_views(self.pipeline, self.root)
-                if self.config.train.export_on_finish:
-                    self.write_state("EXPORTING")
-                    from .exporters import export_pipeline
-
-                    report = export_pipeline(self.pipeline, self.root)
-                    self.write_state("COMPLETE", export=report)
-                else:
-                    self.write_state("TRAINING_COMPLETE", export_pending=True)
+                if self.next_stage == "train":
+                    self._train()
+                self._finalize()
                 return self.pipeline
             except (Exception, KeyboardInterrupt) as exc:
-                # CUDA device assertions can poison the context, so even RNG
-                # capture/checkpointing may fail. Preserve the original cause
-                # and record the last durable checkpoint without hiding it.
+                # A failed optimizer/topology update may have changed only part
+                # of the representation. Keep the last complete checkpoint.
                 checkpoint_error = None
-                try:
-                    self.checkpoint()
-                except Exception as save_error:
-                    checkpoint_error = f"{type(save_error).__name__}: {save_error}"
+                if self.next_stage == "train" and not self._uncommitted_update:
+                    try:
+                        self.checkpoint()
+                    except Exception as save_error:
+                        checkpoint_error = f"{type(save_error).__name__}: {save_error}"
                 latest = self.root / "checkpoints" / "latest.pt"
                 self.write_state(
                     "FAILED"
@@ -313,9 +403,12 @@ def load_run(root, *, device=None, checkpoint="latest.pt"):
 
     root = Path(root).resolve()
     config = load_config(root / "config.yaml")
+    recipe = methods.get(config.method)
+    if hasattr(recipe, "export_run"):
+        raise ValueError(f"{config.method} uses native checkpoints. Use sf-export --run {root} for geometry.")
     if device:
         config.train.device = device
     payload = load_checkpoint(root / "checkpoints" / checkpoint, config.train.device)
-    pipeline = methods.get(config.method).make_pipeline(config)
+    pipeline = recipe.make_pipeline(config)
     pipeline.load_state_dict(payload["pipeline"])
     return pipeline, payload["step"]

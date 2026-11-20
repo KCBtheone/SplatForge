@@ -1,8 +1,9 @@
 # Surface Studio preview
 
 Studio is the experimental application above SplatForge's operator runtime.
-RaDe-GS, AmbiSuR, and GOF share data loading, a model/pipeline interface,
-training, checkpoints, evaluation, exporters, and a local viewer.
+RaDe-GS, AmbiSuR, GOF, MILo, and VCR-GauS share the Studio pipeline.
+PGSR and Unbiased Surfel use their native trainers through the same
+configuration, training, resume, and mesh export commands.
 
 ## Commands
 
@@ -21,6 +22,12 @@ experiment. Configuration overrides use `--set section.field=value`; unknown
 fields fail explicitly. Use a new output directory for a new experiment and
 `--resume latest` for an existing run. Resume restores optimizer, RNG, and
 camera-sampling state; changing a method or loss requires a new experiment.
+
+Set `TORCH_EXTENSIONS_DIR` to select the build directory for the optional
+native backends. On a host with a dedicated data volume, set
+`SPLATFORGE_DATA_ROOT` to that volume before launching Studio. Run outputs and
+extension builds then stay below that root, with capacity checks on the
+configured volume and training device.
 
 ## Inputs
 
@@ -46,9 +53,45 @@ from the paper's prior-model configuration.
 
 | Recipe | Included mechanisms | Default backend / export |
 | --- | --- | --- |
-| `radegs` | Per-pixel plane depth, normals, L2 distortion, depth-normal consistency; optional multiview terms | Pinned gsplat port / TSDF |
+| `radegs` | Per-pixel plane depth and normals, depth-normal consistency, optional distortion and multiview terms | `gsplat-radegs-moments` / TSDF |
 | `ambisur` | Ray-color ambiguity, SH filtering, prior supervision, gradient-isolated geometry constraints | Torch / TSDF |
 | `gof` | Ray-Gaussian response, L1 distortion, opacity field, tetrahedral extraction | Torch / GOF isosurface |
+| `vcrgaus` | Tangent-plane depth, normal supervision and distortion | Native CUDA / TSDF |
+| `pgsr` | Planar Gaussians, depth normals and multiview consistency | `gsplat-pgsr` / TSDF |
+| `unbiased-surfel` | Corrected surfel depth and depth convergence | `unbiased-native` / TSDF |
+| `milo` | RaDe-GS-based Gaussian training and mesh-in-the-loop optimization | `torch-batched` and SciPy topology / optimized mesh |
+
+### PGSR and Unbiased Surfel
+
+Both methods accept masked COLMAP inputs and produce `mesh.ply` in the run
+directory. Follow the [CUDA setup and input guide](../releases/pgsr-preview.md).
+
+```bash
+sf-train pgsr --data /path/to/colmap-scene --output outputs/pgsr
+sf-train unbiased-surfel --data /path/to/colmap-scene --output outputs/unbiased
+sf-export --run outputs/unbiased --kind mesh
+```
+
+Use `sf-eval --prediction` with `--ground-truth` to evaluate either method's mesh.
+
+### VCR-GauS
+
+Use a CUDA-enabled PyTorch installation with a CUDA toolchain and install the
+`studio` and `mesh` extras. Provide undistorted COLMAP views and one
+image-aligned, camera-space normal NPZ per view. The loader reads `normal`
+or the DSINE-style `arr_0` key. With the default recipe the normals follow
+the VCR-GauS orientation, pointing away from the camera.
+
+```bash
+splatforge config vcrgaus --output vcr.yaml --data /path/to/scene
+sf-train --config vcr.yaml --output outputs/vcr --set data.priors=normal_npz_indoor
+```
+
+The native extension builds on first use. Set `TORCH_EXTENSIONS_DIR` to
+choose the cache location. Studio's VCR-GauS exporter uses centred intrinsics
+and Open3D TSDF by default.
+
+### Other backends
 
 The RaDe-GS backend is an optional external dependency. Install it in a
 dedicated CUDA environment after installing the required PyTorch build:
@@ -60,10 +103,29 @@ python -m pip install --no-deps --no-build-isolation \
 ```
 
 The ordinary PyPI gsplat package does not satisfy this adapter's pinned API.
-The reference `torch` backend can exercise all three recipes on small inputs.
+The reference `torch` backend can exercise RaDe-GS, AmbiSuR, and GOF on small inputs.
 `torch-batched`, `torch-compiled`, and the optional CUDA composite backend have
 separate execution and toolchain requirements. They are explicit choices, and
 unsupported configurations raise errors.
+
+The current RaDe-GS preset starts geometric supervision at iteration 7,000
+with depth distortion weighted at zero. The MILo base preset initializes its
+mesh after 8,000 optimizer updates. Set `train.export_on_finish=false` for
+short MILo runs that end before mesh initialization.
+
+AmbiSuR also has the explicit `torch-batched-ambisur` backend. It retains the
+original projected-center broadcast during backward while evaluating the
+heavy event equations on compacted member slots. It uses the normal trainer,
+losses, Adam state and checkpoint/resume path:
+
+```bash
+splatforge train ambisur --data /path/to/scene --output outputs/ambisur \
+  --backend torch-batched-ambisur
+```
+
+This backend requires float32 inputs and aligned depth priors. It remains an
+experimental implementation until the recorded real-scene training, speed and
+mesh/CD gates pass; CPU integration and resume tests establish only that scope.
 
 The `gsplat-radegs-stable-moments` variant explicitly uses float64 Cholesky
 geometry with its own differentiable contract. It is not native backward

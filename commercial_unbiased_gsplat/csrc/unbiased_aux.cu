@@ -408,6 +408,8 @@ __global__ void depth_to_points_backward_kernel(
     scalar_t* __restrict__ g_depth,
     scalar_t* __restrict__ g_c2w,
     scalar_t* __restrict__ g_K,
+    bool need_camera,
+    bool need_intrinsics,
     int64_t N,
     int64_t H,
     int64_t W) {
@@ -436,6 +438,7 @@ __global__ void depth_to_points_backward_kernel(
   g_depth[idx] = gcamx * dirx + gcamy * diry + gcamz;
   scalar_t gdirx = gcamx * z;
   scalar_t gdiry = gcamy * z;
+  if (need_camera) {
   scalar_t* gR = g_c2w + n * 16;
   atomicAdd(gR + 0, gwx * camx);
   atomicAdd(gR + 1, gwx * camy);
@@ -449,6 +452,8 @@ __global__ void depth_to_points_backward_kernel(
   atomicAdd(gR + 9, gwz * camy);
   atomicAdd(gR + 10, gwz * camz);
   atomicAdd(gR + 11, gwz);
+  }
+  if (need_intrinsics) {
   scalar_t* gKn = g_K + n * 9;
   scalar_t u = static_cast<scalar_t>(x) - cx + static_cast<scalar_t>(0.5);
   scalar_t v = static_cast<scalar_t>(y) - cy + static_cast<scalar_t>(0.5);
@@ -456,6 +461,7 @@ __global__ void depth_to_points_backward_kernel(
   atomicAdd(gKn + 2, gdirx * (-static_cast<scalar_t>(1) / fx));
   atomicAdd(gKn + 4, gdiry * (-v / (fy * fy)));
   atomicAdd(gKn + 5, gdiry * (-static_cast<scalar_t>(1) / fy));
+  }
 }
 
 std::vector<torch::Tensor> zncc_backward_cuda(
@@ -492,7 +498,9 @@ std::vector<torch::Tensor> depth_to_points_backward_cuda(
     torch::Tensor point_valid,
     torch::Tensor camera_to_world,
     torch::Tensor intrinsics,
-    torch::Tensor grad_points) {
+    torch::Tensor grad_points,
+    bool need_camera,
+    bool need_intrinsics) {
   auto H = depth.size(-2);
   auto W = depth.size(-1);
   auto N = depth.numel() / (H * W);
@@ -520,6 +528,8 @@ std::vector<torch::Tensor> depth_to_points_backward_cuda(
         g_depth.data_ptr<scalar_t>(),
         g_c2w.data_ptr<scalar_t>(),
         g_K.data_ptr<scalar_t>(),
+        need_camera,
+        need_intrinsics,
         N,
         H,
         W);

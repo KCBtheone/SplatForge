@@ -86,6 +86,7 @@ def render_tile_batch(
         depth,
         pixel_normals,
         distortions=distortions,
+        detach_l1_weights=mode == "gof",
     )
     expected = znum / alpha.clamp_min(1e-8)
     if mode == "ambisur":
@@ -113,6 +114,6 @@ def render_tile_batch(
             median[..., None],
             variance[..., None],
             ambiguity[..., None],
-        ),
+        ) + ((nnum,) if mode == "gof" else ()),
         -1,
     )

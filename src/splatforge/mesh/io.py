@@ -38,7 +38,13 @@ def write_mesh(path, vertices, faces):
         handle.write(records.tobytes())
 
 
-def write_gaussians(path, model):
+def write_gaussians(path, model, *, filter_sigma=None):
+    """Write standard GS fields, optionally baking the saved RaDe 3D filter.
+
+    A standard PLY viewer cannot restore the training-time filter cache. Passing
+    its population-matched sigma exports the covariance and peak opacity that
+    the renderer actually consumes, while the checkpoint retains raw parameters.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     positions = model.means.detach().cpu().numpy()
@@ -53,6 +59,28 @@ def write_gaussians(path, model):
     )
     opacity = model.params["opacity_logits"].detach().cpu().numpy()[:, None]
     scale = model.params["log_scales"].detach().cpu().numpy()
+    if filter_sigma is not None:
+        import torch
+        from ..integrations.radegs_filter3d import convolve_fields
+
+        if (filter_sigma.shape != (model.count,)
+                or not bool(torch.isfinite(filter_sigma).all())
+                or bool((filter_sigma < 0).any())):
+            raise ValueError("export requires the saved population-matched RaDe filter")
+        with torch.no_grad():
+            raw_scales = model.scales.detach()
+            smoothed, _ = convolve_fields(
+                raw_scales, model.opacities.detach(), filter_sigma.detach()
+            )
+            coefficient = (raw_scales / smoothed).prod(-1)
+            raw_logits = model.params["opacity_logits"].detach()
+            # logit(c * sigmoid(x)); this also preserves finite raw logits
+            # when c == 1 and sigmoid(x) has rounded to one.
+            logits = raw_logits + coefficient.log() - torch.logaddexp(
+                torch.zeros_like(raw_logits), raw_logits + torch.log1p(-coefficient)
+            )
+            opacity = logits.cpu().numpy()[:, None]
+            scale = smoothed.log().cpu().numpy()
     quats = model.quats.detach().cpu().numpy()
     names = (
         ["x", "y", "z", "nx", "ny", "nz"]

@@ -1,24 +1,21 @@
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from splatforge.studio.resources import capacity
 
 
-def test_inaccessible_root_does_not_break_a_non_autodl_linux_host():
-    with patch("os.stat", side_effect=PermissionError("inaccessible /root")):
-        assert capacity(None) == {"allowed": True, "policy": "local-no-autodl-gate"}
+def test_unconfigured_data_root_skips_capacity_gate(monkeypatch):
+    monkeypatch.delenv("SPLATFORGE_DATA_ROOT", raising=False)
+    assert capacity(None) == {"allowed": True, "policy": "no-data-root"}
 
 
-def test_real_autodl_path_still_applies_the_data_disk_capacity_gate():
+def test_configured_data_root_applies_disk_capacity_gate(monkeypatch, tmp_path):
+    monkeypatch.setenv("SPLATFORGE_DATA_ROOT", str(tmp_path))
     config = SimpleNamespace(train=SimpleNamespace(
-        output=Path("/root/autodl-tmp") / "example/run", device="cpu"
+        output=tmp_path / "example/run", device="cpu"
     ))
-    with (
-        patch("os.path.isdir", return_value=True),
-        patch("splatforge.studio.resources.shutil.disk_usage",
-              return_value=SimpleNamespace(free=19 * 1024**3)),
-    ):
+    with patch("splatforge.studio.resources.shutil.disk_usage",
+               return_value=SimpleNamespace(free=19 * 1024**3)):
         report = capacity(config)
     assert report["allowed"] is False
     assert report["disk_min_bytes"] == 20 * 1024**3

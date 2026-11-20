@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77", "wheel"]
+requires = ["setuptools>=77", "wheel", "pybind11>=2.13"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "splatforge"
-version = "0.0.1a1"
+version = "0.0.1a2"
 description = "An operator-first research prototype for geometry-oriented Gaussian Splatting"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,6 +27,8 @@ dependencies = [
 test = ["pytest>=8.0", "numpy>=1.24", "scipy>=1.10", "Pillow>=10"]
 studio = ["numpy>=1.24", "scipy>=1.10", "Pillow>=10"]
 mesh = ["open3d>=0.18"]
+geometry = ["numpy>=1.24", "scipy>=1.10"]
+geometry-cuda12 = ["numpy>=1.24", "scipy>=1.10", "cupy-cuda12x>=14", "nvidia-cuda-runtime-cu12"]
 gsplat-radegs = ["gsplat @ git+https://github.com/Mollylulu/gsplat_radegs.git@23b0f82551a938a05b5b99df06edf220b9305a51"]
 
 [project.urls]
@@ -40,15 +42,26 @@ sf-train = "splatforge.studio.cli:train_main"
 sf-export = "splatforge.studio.cli:export_main"
 sf-eval = "splatforge.studio.cli:eval_main"
 sf-viewer = "splatforge.studio.cli:viewer_main"
+sf-mesh = "splatforge.mesh.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 "splatforge.providers.torch.testing" = ["*.implementation.yaml"]
-"splatforge.providers.torch.gaussian" = ["*.cu"]
+"splatforge.providers.torch.gaussian" = ["*.cu", "*.cuh", "csrc/vcr_*.cu", "csrc/vcr_*.cuh", "csrc/vcr_*.cpp"]
 "splatforge.gaussian" = ["semantics.json"]
-"splatforge.studio" = ["viewer.html", "viewer.js", "viewer.css"]
+"splatforge.integrations" = ["*.cu", "*.h"]
+"splatforge.studio" = [
+  "viewer.html", "viewer.js", "viewer.css", "ambisur_aten.cpp",
+  "native_source/LICENSE", "native_source/NOTICE", "native_source/*.py",
+  "native_source/tools/*.py", "native_source/unbiased_gsplat/*.py",
+  "native_source/csrc/*.cpp", "native_source/csrc/*.cu", "native_source/csrc/NOTICE",
+]
+"splatforge.mesh" = ["native/*.cpp", "native/*.cu", "native/*.h", "native/*.ptx"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.pyd", "*.so", "*.obj", "*.lib", "*.exp"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

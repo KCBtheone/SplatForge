@@ -7,6 +7,9 @@ No held-out image may enter a training-prior inference window.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -78,6 +81,18 @@ def align_prior_pixels(depth, confidence, processed_K, original_K, *, width, hei
 
 class DA3BasePriors:
     def __init__(self, model_directory, *, device="cuda", process_res=504):
+        model_directory = Path(model_directory).resolve()
+        metadata = json.loads((model_directory / "config.json").read_text())
+        if (
+            metadata.get("model_name") != "da3-base"
+            or metadata.get("config", {}).get("net", {}).get("name") != "vitb"
+        ):
+            raise ValueError("AmbiSuR commercial variant requires DA3-BASE / vitb")
+        weights = model_directory / "model.safetensors"
+        if not weights.is_file() or weights.stat().st_size == 0:
+            partial = model_directory / "model.safetensors.part"
+            detail = f"; resumable partial: {partial}" if partial.exists() else ""
+            raise FileNotFoundError(f"DA3-BASE complete local weights missing: {weights}{detail}")
         from depth_anything_3.api import DepthAnything3
 
         self.model = (

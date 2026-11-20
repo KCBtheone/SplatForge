@@ -1,37 +1,11 @@
 # SplatForge
 
-**Reusable operators and a modular framework for Gaussian Splatting and 3D reconstruction research.**
+SplatForge provides geometry, rendering, and optimization operators for
+Gaussian Splatting. Studio uses them in a shared workflow for training,
+evaluation, and surface extraction.
 
-*Reproduce. Decompose. Recombine.*
-
-SplatForge is building a common toolbox for developing reconstruction methods.
-We start with geometry-oriented Gaussian Splatting: turn the geometry,
-rendering, and optimization components behind individual methods into
-operators that researchers can inspect, test, and reuse.
-
-The goal is to take an idea from one paper, bring it into another method, and
-evaluate the change within the same research workflow. As the foundations
-develop, we plan to extend the toolbox to more GS methods, multi-view stereo,
-and geometry processing.
-
-**Current stage: early prototype (`0.0.1a1`).** This repository is the first
-public code preview of that direction. Interfaces are still evolving.
-
-## Why build this?
-
-Moving a depth constraint, densification rule, or surface extraction idea into
-a new method can require changes across its renderer, representation, trainer,
-and evaluation code. SplatForge aims to give those components explicit
-boundaries so that an experiment can focus on the idea being tested.
-
-Three goals guide the project:
-
-- **Reproduce:** exercise selected methods in a shared workflow and understand
-  their numerical behavior.
-- **Decompose:** expose useful components as operators with documented tensor
-  semantics and gradients.
-- **Recombine:** make it easier to replace components and test new combinations
-  across methods. Broad compatibility is a development goal.
+The `0.0.1a2` source preview includes experimental method recipes. Interfaces
+are still evolving.
 
 ## What we are building
 
@@ -66,24 +40,25 @@ See the [roadmap](docs/ROADMAP.md) for what each stage is intended to deliver.
 
 ## Explore the code
 
-The current source includes three experimental Studio recipes and an
-independent companion containing Unbiased Surfel and PGSR-style auxiliaries.
+Studio includes experimental RaDe-GS, AmbiSuR, GOF, MILo, VCR-GauS, PGSR,
+and Unbiased Surfel recipes.
 
 | Source | Start here |
 | --- | --- |
 | [Gaussian operators](src/splatforge/gaussian/) | Versioned entry points and [tensor contracts](src/splatforge/gaussian/semantics.json) |
 | [Torch providers](src/splatforge/providers/torch/gaussian/) | Covariance, ray geometry, SH, compositing, depth distortion, ambiguity, opacity fields, and patch ZNCC |
-| [Method recipes](src/splatforge/studio/methods/) | RaDe-GS, AmbiSuR, and GOF configurations and pipeline factories |
+| [Method recipes](src/splatforge/studio/methods/) | Studio presets and training backends |
 | [Studio](src/splatforge/studio/) | Data, representations, training, resume, evaluation, viewer, and exporters |
 | [Core runtime](src/splatforge/core/) | Contracts, registries, provider capabilities, dispatch, and execution policy |
 | [Mesh utilities](src/splatforge/mesh/) | Tetrahedral extraction and geometry I/O |
-| [Independent companion](commercial_unbiased_gsplat/) | Unbiased Surfel and PGSR-style operators, installed separately from Studio |
+| [CUDA companion](commercial_unbiased_gsplat/) | Standalone operator package and Unbiased Surfel CUDA sources |
+| [PGSR and Unbiased Surfel setup](docs/releases/pgsr-preview.md) | COLMAP input, CUDA dependencies and TSDF mesh export |
 | [Tests](tests/) | Operator behavior, gradients, component integration, and synthetic workflows |
 
 RaDe-GS optionally integrates a pinned gsplat port. AmbiSuR and GOF use
-experimental paper-derived Torch compositions. The companion is not registered
-as additional Studio methods. Scope and source details are in the
-[Studio guide](docs/studio/PUBLIC_GUIDE.md) and [dependency notes](THIRD_PARTY.md).
+paper-derived Torch operators. MILo uses reference implementations for mesh
+topology and rasterization. See the [Studio guide](docs/studio/PUBLIC_GUIDE.md)
+and [dependency notes](THIRD_PARTY.md) for the requirements of each recipe.
 
 ## Try an operator
 
@@ -134,22 +109,26 @@ one line or use a backtick for continuation.
 
 ## Development status
 
+The optional [CPU mesh processing layer](docs/mesh/PROCESSING.md) includes
+clipping and capping, boundary patches, topology and intersection checks,
+constrained smoothing, and quadric error simplification.
+
 The prototype includes local tests and CPU CI for operators and synthetic
 workflows. Paper benchmark parity, real-scene quality acceptance, and arbitrary
 cross-method compatibility are not established by those checks. Accelerated
 backends require their own numerical and performance validation.
 
-The [source preview](https://github.com/KCBtheone/SplatForge/releases/tag/v0.0.1a1)
-provides a versioned code snapshot and validation record. Optional installable
-packages are available there as a convenience.
+The [source preview](https://github.com/KCBtheone/SplatForge/releases/tag/v0.0.1a2)
+provides the source tree, Python source distribution, and installable wheel.
 
 ## Documentation and development
 
 - [Studio guide](docs/studio/PUBLIC_GUIDE.md): inputs, backends, plugins, and exports.
-- [Architecture](ARCHITECTURE.md): design direction; some sections describe planned work.
+- [Studio architecture](docs/adr/0004-modular-surface-studio.md).
 - [Roadmap](docs/ROADMAP.md): feasibility work, the first operator library, and later expansion.
 - [Source and dependency notes](THIRD_PARTY.md).
-- [Preview release notes](docs/releases/0.0.1a1.md).
+- [Preview release notes](docs/releases/0.0.1a2.md).
+- [Preparing a public preview](docs/releases/README.md).
 - [Contributing](CONTRIBUTING.md).
 
 For the source checks:
@@ -159,10 +138,9 @@ python -m pip install -e '.[studio,test]'
 python tools/quality/run_phase0_checks.py
 ```
 
-The `Phase 0` name refers to the feasibility stage and its local checks, not a
-completed paper reproduction. CUDA backends require separate environment and
-GPU validation. The current release verification is described in the release
-notes.
+The Phase 0 checks cover the feasibility-stage implementation. CUDA backends
+require separate environment and GPU validation. The release notes describe
+verification for the tagged `v0.0.1a2` release.
 
 ## License
 

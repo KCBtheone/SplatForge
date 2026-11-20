@@ -1,0 +1,30 @@
+Independent commercial planar-Gaussian and unbiased-surfel implementation
+Copyright 2026. Licensed under Apache License 2.0; see LICENSE.
+
+Mathematical research attribution (papers are not included in this package):
+PGSR: Planar-based Gaussian Splatting for Efficient and High-Fidelity Surface
+Reconstruction, arXiv:2406.06521.
+Introducing Unbiased Depth into 2D Gaussian Splatting for High-accuracy Surface
+Reconstruction, arXiv:2503.06587.
+
+Renderer dependency: gsplat 1.5.3, official commit
+6f378361f32ba4f1be86f65ae0db4948efb37dd5, Apache License 2.0.
+The separately installed gsplat, PyTorch, CUDA, GLM, NumPy, Pillow, SciPy and
+Open3D runtimes retain their own license and copyright notices. Runtime
+license evidence is captured with each evaluation. This source package does
+not include third-party runtime binaries or either paper author's software.
+
+The implementation includes explicitly documented schedules, refinement and
+two-layer regional composition. It does not assert author-software identity,
+reference agreement, legal clearance, or patent clearance.
+
+physical_refinement.cu includes an adaptation of the Apache-2.0 gsplat
+RasterizeToPixels2DGSBwd.cu backward translation unit. Upstream project:
+https://github.com/nerfstudio-project/gsplat . The adaptation adds fixed
+pixel-phase refinement statistics without changing physical VJP equations.
+See LICENSE, SPEC.md and PROVENANCE.md; all upstream notices remain applicable.
+Physical primary/auxiliary ordering prototype: independently implemented ray
+collection/sorting and public-paper auxiliary math. Primary projective and
+alpha-compositing VJP equations follow Apache-2.0 gsplat (nerfstudio-project),
+the permitted RasterizeToPixels2DGSBwd.cu. See SPEC.md and PROVENANCE.md.
+

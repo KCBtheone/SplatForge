@@ -122,7 +122,7 @@ def ray_color_variance(weights, colors, composite):
     return (weights.detach() * error.square().sum(-1)).sum(0)
 
 
-def alpha_composite(alphas, colors, depths, normals):
+def alpha_composite(alphas, colors, depths, normals, *, detach_l1_weights=False):
     alphas = alphas.clamp(0, 0.999)
     prefix = torch.cat((torch.ones_like(alphas[:1]), 1 - alphas), 0).cumprod(0)
     weights = alphas * prefix[:-1]
@@ -132,7 +132,7 @@ def alpha_composite(alphas, colors, depths, normals):
     nnum = (weights.unsqueeze(-1) * normals).sum(0)
     w = weights.detach()
     sorted_depth, order = depths.sort(0)
-    sorted_w = weights.gather(0, order)
+    sorted_w = (w if detach_l1_weights else weights).gather(0, order)
     pw = sorted_w.cumsum(0) - sorted_w
     pwd = (sorted_w * sorted_depth).cumsum(0) - sorted_w * sorted_depth
     l1 = (2 * sorted_w * (sorted_depth * pw - pwd)).sum(0).clamp_min(0)
@@ -148,7 +148,7 @@ def alpha_composite(alphas, colors, depths, normals):
     return rgb, alpha, znum, nnum, l1, l2, median, weights
 
 
-def alpha_composite_batch(alphas, colors, depths, normals, *, distortions="both"):
+def alpha_composite_batch(alphas, colors, depths, normals, *, distortions="both", detach_l1_weights=False):
     """Explicit B/N/P contract; no torch.func transform or hidden batch axis."""
     alphas = alphas.clamp(0, 0.999)
     prefix = torch.cat((torch.ones_like(alphas[:, :1]), 1 - alphas), 1).cumprod(1)
@@ -161,7 +161,7 @@ def alpha_composite_batch(alphas, colors, depths, normals, *, distortions="both"
     l1 = torch.zeros_like(alpha)
     if distortions in ("l1", "both"):
         sorted_depth, order = depths.sort(1)
-        sorted_w = weights.gather(1, order)
+        sorted_w = (w if detach_l1_weights else weights).gather(1, order)
         pw = sorted_w.cumsum(1) - sorted_w
         pwd = (sorted_w * sorted_depth).cumsum(1) - sorted_w * sorted_depth
         l1 = (2 * sorted_w * (sorted_depth * pw - pwd)).sum(1).clamp_min(0)
@@ -179,10 +179,11 @@ def alpha_composite_batch(alphas, colors, depths, normals, *, distortions="both"
     return rgb, alpha, znum, nnum, l1, l2, median, weights
 
 
-def alpha_composite_batch_selected(alphas, colors, depths, normals, *, distortions):
+def alpha_composite_batch_selected(alphas, colors, depths, normals, *, distortions, detach_l1_weights=False):
     """Version 3 has an explicit output-work selection, not a changed loss."""
     return alpha_composite_batch(
-        alphas, colors, depths, normals, distortions=distortions
+        alphas, colors, depths, normals, distortions=distortions,
+        detach_l1_weights=detach_l1_weights,
     )
 
 

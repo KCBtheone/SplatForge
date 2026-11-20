@@ -57,7 +57,7 @@ class StudioIntegrationTests(unittest.TestCase):
         )
 
     def test_three_methods_train_save_load_and_render(self):
-        for name in methods.names():
+        for name in ("ambisur", "gof", "radegs"):
             with self.subTest(method=name):
                 config = self.config(name, output=name)
                 pipeline = Trainer(config).run()

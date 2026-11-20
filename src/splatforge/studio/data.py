@@ -352,9 +352,12 @@ class DataManager:
         if frame.prior:
             with np.load(frame.prior, allow_pickle=False) as prior:
                 for key in ("depth", "normal", "confidence"):
-                    if key not in prior:
+                    source_key = key
+                    if key == "normal" and key not in prior:
+                        source_key = getattr(self.config, "normal_prior_key", key)
+                    if source_key not in prior:
                         continue
-                    value = torch.from_numpy(np.array(prior[key], dtype=np.float32))
+                    value = torch.from_numpy(np.array(prior[source_key], dtype=np.float32))
                     value = torch.where(torch.isfinite(value), value, 0)
                     if key in ("depth", "confidence"):
                         value = value.clamp_min(0)

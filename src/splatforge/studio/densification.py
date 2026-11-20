@@ -9,9 +9,13 @@ from ..providers.torch.gaussian.reference import rotation_matrix
 
 
 class GaussianDensifier:
-    def __init__(self, config, model, *, extent=1.0):
+    def __init__(self, config, model, *, extent=1.0, opacity_reset_max=0.1):
         self.config = config
         self.extent = extent
+        if not 0 < opacity_reset_max < 1:
+            raise ValueError("opacity reset maximum must be between zero and one")
+        self.opacity_reset_max = float(opacity_reset_max)
+        self.defer_opacity_reset = False
         self.gradient = torch.zeros(model.count, device=model.device)
         self.observations = torch.zeros_like(self.gradient)
 
@@ -19,6 +23,9 @@ class GaussianDensifier:
         projected = output.projected_means
         if projected is None:
             return
+        rows = getattr(output, "gaussian_rows", None)
+        if rows is not None and rows is not model.means:
+            raise ValueError("renderer densification statistics use a stale Gaussian layout")
         gradient = (
             getattr(projected, "absgrad", None)
             if self.config.absolute_gradients
@@ -27,7 +34,11 @@ class GaussianDensifier:
         if gradient is None:
             return
         gradient = gradient.detach().reshape(-1, 2)
-        if len(gradient) != model.count:
+        if (
+            len(gradient) != model.count
+            or output.projected_radii is None
+            or output.projected_radii.numel() != model.count
+        ):
             raise ValueError(
                 "renderer densification statistics do not match Gaussian count"
             )
@@ -56,6 +67,7 @@ class GaussianDensifier:
         # visits log_scales before means; looking up model.scales inside that
         # loop would therefore address the already-pruned/reordered/new array.
         child_scales = model.scales.detach()[children].clone()
+        edits = []
         for name, old in list(model.params.items()):
             data = old.detach()[indices].clone()
             if len(children):
@@ -68,8 +80,8 @@ class GaussianDensifier:
                 elif name == "log_scales":
                     base = base - 0.5 if child_log_scales is None else child_log_scales
                 data = torch.cat((data, base), 0)
-            replacement = nn.Parameter(data)
-            state = optimizer.state.pop(old, {})
+            replacement = nn.Parameter(data, requires_grad=old.requires_grad)
+            state = optimizer.state.get(old, {})
             transformed = {}
             for key, value in state.items():
                 if isinstance(value, torch.Tensor) and value.shape == old.shape:
@@ -81,16 +93,27 @@ class GaussianDensifier:
                     )
                 else:
                     transformed[key] = value
-            for group in optimizer.param_groups:
-                group["params"] = [
-                    replacement if parameter is old else parameter
-                    for parameter in group["params"]
-                ]
+            edits.append((name, old, replacement, transformed))
+        replacements = {old: replacement for _, old, replacement, _ in edits}
+        groups = [
+            [replacements.get(parameter, parameter) for parameter in group["params"]]
+            for group in optimizer.param_groups
+        ]
+        count = len(indices) + len(children)
+        gradient = self.gradient.new_zeros(count)
+        observations = self.observations.new_zeros(count)
+
+        # Prepare all tensors against the old layout before replacing any
+        # Parameter or Adam reference.
+        for group, params in zip(optimizer.param_groups, groups):
+            group["params"] = params
+        for name, old, replacement, transformed in edits:
             model.params[name] = replacement
+            optimizer.state.pop(old, None)
             if transformed:
                 optimizer.state[replacement] = transformed
-        self.gradient = torch.zeros(model.count, device=model.device)
-        self.observations = torch.zeros_like(self.gradient)
+        self.gradient = gradient
+        self.observations = observations
 
     @torch.no_grad()
     def after_step(self, step, model, optimizer):
@@ -98,11 +121,14 @@ class GaussianDensifier:
         if not config.enabled or step >= config.stop:
             return
         if (
-            config.reset_opacity_every > 0
+            not self.defer_opacity_reset
+            and config.reset_opacity_every > 0
             and step > 0
             and step % config.reset_opacity_every == 0
         ):
-            ceiling = model.params["opacity_logits"].new_tensor(-2.197224577)
+            ceiling = torch.logit(
+                model.params["opacity_logits"].new_tensor(self.opacity_reset_max)
+            )
             model.params["opacity_logits"].clamp_(max=ceiling)
             state = optimizer.state.get(model.params["opacity_logits"], {})
             for key in ("exp_avg", "exp_avg_sq"):
@@ -128,22 +154,15 @@ class GaussianDensifier:
         split = grow[largest_scale[grow] > config.grow_scale_fraction * self.extent]
         # A small Gaussian is cloned without a random walk. A large Gaussian
         # is replaced by two rotated, smaller children; its parent is removed.
-        parents = split.repeat_interleave(2)
-        offsets = (
-            torch.randn((len(parents), 3), device=model.device)
-            * model.scales.detach()[parents]
-        )
-        offsets = (
-            rotation_matrix(model.quats.detach()[parents]) @ offsets[..., None]
-        ).squeeze(-1)
+        parents, split_means, split_log_scales = self.split_children(model, split)
         children = torch.cat((clone, parents))
         child_means = torch.cat(
-            (model.means.detach()[clone], model.means.detach()[parents] + offsets)
+            (model.means.detach()[clone], split_means)
         )
         child_log_scales = torch.cat(
             (
                 model.params["log_scales"].detach()[clone],
-                (model.scales.detach()[parents] / 1.6).log(),
+                split_log_scales,
             )
         )
         retained = live.clone()
@@ -159,6 +178,15 @@ class GaussianDensifier:
             child_means=child_means,
             child_log_scales=child_log_scales,
         )
+
+    def split_children(self, model, split):
+        parents = split.repeat_interleave(2)
+        scales = model.scales.detach()[parents]
+        offsets = torch.randn((len(parents), 3), device=model.device) * scales
+        offsets = (
+            rotation_matrix(model.quats.detach()[parents]) @ offsets[..., None]
+        ).squeeze(-1)
+        return parents, model.means.detach()[parents] + offsets, (scales / 1.6).log()
 
     def state_dict(self):
         return {"gradient": self.gradient, "observations": self.observations}

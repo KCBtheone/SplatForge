@@ -3,15 +3,22 @@
 
 from __future__ import annotations
 
+import os
+
 from setuptools import setup
+
+build_cuda = os.getenv("UNBIASED_GSPLAT_BUILD_CUDA", "auto")
+if build_cuda not in {"0", "1", "auto"}:
+    raise ValueError("UNBIASED_GSPLAT_BUILD_CUDA must be 0, 1, or auto")
 
 ext_modules = []
 cmdclass = {}
-try:
+if build_cuda != "0":
     import torch
-    from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
-    if torch.cuda.is_available():
+    if build_cuda == "1" or torch.cuda.is_available():
+        from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
         ext_modules = [
             CUDAExtension(
                 name="unbiased_gsplat_cuda",
@@ -25,8 +32,4 @@ try:
             )
         ]
         cmdclass = {"build_ext": BuildExtension}
-except Exception:
-    ext_modules = []
-    cmdclass = {}
-
 setup(ext_modules=ext_modules, cmdclass=cmdclass)

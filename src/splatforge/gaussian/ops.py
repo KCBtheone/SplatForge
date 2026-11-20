@@ -38,12 +38,12 @@ _RUNNERS = {
     "gaussian.sh_color@1": (reference.sh_color, 2, {"degree": 3}),
     "gaussian.sh_ambiguity@1": (reference.sh_ambiguity, 1, {}),
     "gaussian.ray_color_variance@1": (reference.ray_color_variance, 3, {}),
-    "splat.alpha_composite@1": (reference.alpha_composite, 4, {}),
-    "splat.alpha_composite@2": (reference.alpha_composite_batch, 4, {}),
+    "splat.alpha_composite@1": (reference.alpha_composite, 4, {"detach_l1_weights": False}),
+    "splat.alpha_composite@2": (reference.alpha_composite_batch, 4, {"detach_l1_weights": False}),
     "splat.alpha_composite@3": (
         reference.alpha_composite_batch_selected,
         4,
-        {"distortions": None},
+        {"distortions": None, "detach_l1_weights": False},
     ),
     "gaussian.ray_color_variance@2": (reference.ray_color_variance_batch, 3, {}),
     "gaussian.opacity_field@1": (reference.opacity_field, 5, {"gaussian_chunk": 1024}),
@@ -67,6 +67,8 @@ def _validator(op, count, defaults):
         if set(attributes) - set(defaults):
             raise SchemaValidationError("unknown operator attributes")
         attrs = {**defaults, **attributes}
+        if "detach_l1_weights" in attrs and type(attrs["detach_l1_weights"]) is not bool:
+            raise SchemaValidationError("detach_l1_weights must be bool")
         if "distortions" in attrs and attrs["distortions"] not in (
             "none",
             "l1",

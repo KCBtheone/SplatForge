@@ -1,7 +1,13 @@
 # Preparing a public preview
 
-The development workspace can contain private experiment outputs. Prepare a
-new snapshot with the explicit source allowlist:
+Prepare a public source tree with the release allowlist. It includes Studio,
+the operator library, selected tests, and the companion package. The research
+orchestration tools, internal notes, and experiment outputs are kept in the
+development checkout.
+
+The Studio wheel includes GOF, VCR-GauS, PGSR, and Unbiased Surfel.
+It includes the CUDA sources for VCR-GauS and Unbiased Surfel. The full
+source preview also includes the standalone operator package.
 
 ```bash
 python tools/release/prepare_public.py --destination build/preview/source
@@ -14,14 +20,13 @@ python -m build --outdir ../artifacts
 `python -m build` builds the wheel from the generated source distribution.
 Install that wheel in a separate environment containing the Studio dependencies
 and run `tools/release/verify_installed.py --work <new-directory> --report <file>`
-with that environment's Python. Run the companion's own tests separately.
+with that environment's Python. The installed-wheel check covers the registry
+and bundled resources. See the [CUDA setup and input requirements](pgsr-preview.md)
+for training PGSR and Unbiased Surfel.
 
-Review the prepared snapshot before publishing. It contains selected source
-from the working tree, including uncommitted implementations; it does not
-copy the development repository's Git history or local runtime artifacts.
-The main source distribution excludes the independently installed companion;
-the complete repository source ZIP includes it. A release ZIP should be made
-from the reviewed Git commit rather than the workspace directory.
+Review and build from the prepared tree. It takes the current working files,
+including uncommitted edits. Publish the reviewed public tree and build
+artifacts from that tree.
 
 Do not reuse an existing snapshot directory. Retain the release tag, the
 published packages, and the compact verification record for each preview.

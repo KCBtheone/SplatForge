@@ -14,3 +14,7 @@ The companion's Unbiased Surfel mathematical method is attributed to Yixin
 Yang, Yang Zhou, and Hui Huang, "Introducing Unbiased Depth into 2D Gaussian
 Splatting for High-accuracy Surface Reconstruction", arXiv:2503.06587v3.
 Its separate NOTICE and SOURCE_POLICY.md remain applicable.
+
+VCR-GauS method attribution: Chen et al., "VCR-GauS: View Consistent
+Depth-Normal Regularizer for Gaussian Surface Reconstruction",
+arXiv:2406.05774. The standalone PGSR source retains its own NOTICE.

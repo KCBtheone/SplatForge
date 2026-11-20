@@ -28,9 +28,24 @@ def main():
         raise RuntimeError("Verify a wheel installed in this environment, not a source checkout")
     for package, names in {
         "splatforge.gaussian": ["semantics.json"],
-        "splatforge.providers.torch.gaussian": ["composite_cuda.cu"],
+        "splatforge.providers.torch.gaussian": [
+            "composite_cuda.cu", "csrc/vcr_rasterizer.cpp", "csrc/vcr_launch.cu",
+            "csrc/vcr_forward.cu", "csrc/vcr_backward.cu", "csrc/vcr_common.cuh",
+            "csrc/vcr_kernels.cuh",
+        ],
         "splatforge.providers.torch.testing": ["scale_shift.implementation.yaml"],
-        "splatforge.studio": ["viewer.html", "viewer.js", "viewer.css"],
+        "splatforge.integrations": ["radegs_tangent_cuda.cu", "radegs_tangent_math.h"],
+        "splatforge.studio": [
+            "viewer.html", "viewer.js", "viewer.css", "ambisur_aten.cpp",
+            "native_source/train.py", "native_source/LICENSE", "native_source/NOTICE",
+            "native_source/tools/commercial_colmap.py",
+            "native_source/tools/train_commercial_methods.py",
+            "native_source/unbiased_gsplat/planar_gaussian.py",
+            "native_source/unbiased_gsplat/commercial_model.py",
+            "native_source/csrc/unbiased_fused_bind.cpp",
+            "native_source/csrc/unbiased_fused.cu", "native_source/csrc/unbiased_aux.cu",
+            "native_source/csrc/rasterize_unbiased_aux.cu", "native_source/csrc/NOTICE",
+        ],
     }.items():
         for name in names:
             if not importlib.resources.files(package).joinpath(name).is_file():
@@ -64,8 +79,12 @@ def main():
         run(name, "--help")
     methods = json.loads(run("splatforge", "methods", "--json"))
     names = sorted(row["name"] for row in methods)
-    if names != ["ambisur", "gof", "radegs"]:
+    if names != ["ambisur", "gof", "milo", "pgsr", "radegs", "unbiased-surfel", "vcrgaus"]:
         raise RuntimeError("Unexpected preview method registry")
+    backends = {row["name"]: row["default_backend"] for row in methods}
+    for method, backend in (("vcrgaus", "vcr-native"), ("pgsr", "gsplat-pgsr"), ("unbiased-surfel", "unbiased-native")):
+        if backends[method] != backend:
+            raise RuntimeError(f"{method} preset must use {backend}")
     data, output = work / "data", work / "run"
     run("splatforge", "demo", "--output", data, "--width", 24, "--points", 48)
     run(

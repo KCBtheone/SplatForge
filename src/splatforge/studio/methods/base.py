@@ -2,6 +2,7 @@
 
 from ..config import StudioConfig
 from ..losses import photometric_loss
+from ..step import training_step
 
 
 class SurfaceMethod:
@@ -10,6 +11,7 @@ class SurfaceMethod:
     rendering_mode = ""
     exporter = "tsdf"
     requires_prior = False
+    training_step = staticmethod(training_step)
 
     def __init__(self, config):
         self.config = config

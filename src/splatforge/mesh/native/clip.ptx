@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: Apache-2.0
+// Owned binary64 clipping kernels. Driver JIT only; no NVRTC dependency.
+.version 6.4
+.target sm_60
+.address_size 64
+
+.visible .entry distances(
+ .param .u64 v, .param .u64 output, .param .u32 count,
+ .param .f64 nx, .param .f64 ny, .param .f64 nz, .param .f64 offset)
+{
+ .reg .pred %p;
+ .reg .b32 %r<5>;
+ .reg .b64 %a<7>;
+ .reg .f64 %d<12>;
+ ld.param.u64 %a0,[v]; ld.param.u64 %a1,[output]; ld.param.u32 %r4,[count];
+ mov.u32 %r0,%ctaid.x; mov.u32 %r1,%ntid.x; mov.u32 %r2,%tid.x;
+ mad.lo.s32 %r3,%r0,%r1,%r2; setp.ge.u32 %p,%r3,%r4; @%p bra DIST_END;
+ mul.wide.u32 %a2,%r3,24; add.u64 %a3,%a0,%a2;
+ ld.global.f64 %d0,[%a3]; ld.global.f64 %d1,[%a3+8]; ld.global.f64 %d2,[%a3+16];
+ ld.param.f64 %d3,[nx]; ld.param.f64 %d4,[ny]; ld.param.f64 %d5,[nz]; ld.param.f64 %d6,[offset];
+ mul.rn.f64 %d7,%d0,%d3; mul.rn.f64 %d8,%d1,%d4; mul.rn.f64 %d9,%d2,%d5;
+ add.rn.f64 %d10,%d7,%d8; add.rn.f64 %d11,%d10,%d9; sub.rn.f64 %d11,%d11,%d6;
+ mul.wide.u32 %a4,%r3,8; add.u64 %a5,%a1,%a4; st.global.f64 [%a5],%d11;
+DIST_END: ret;
+}
+
+.visible .entry classify(.param .u64 faces,.param .u64 distance,.param .u64 output,.param .u32 count)
+{
+ .reg .pred %p;
+ .reg .b32 %r<10>;
+ .reg .b64 %a<15>;
+ .reg .f64 %d<3>;
+ ld.param.u64 %a0,[faces]; ld.param.u64 %a1,[distance]; ld.param.u64 %a2,[output]; ld.param.u32 %r4,[count];
+ mov.u32 %r0,%ctaid.x; mov.u32 %r1,%ntid.x; mov.u32 %r2,%tid.x;
+ mad.lo.s32 %r3,%r0,%r1,%r2; setp.ge.u32 %p,%r3,%r4; @%p bra CLASS_END;
+ mul.wide.u32 %a3,%r3,24; add.u64 %a4,%a0,%a3;
+ ld.global.u64 %a5,[%a4]; ld.global.u64 %a6,[%a4+8]; ld.global.u64 %a7,[%a4+16];
+ shl.b64 %a5,%a5,3; shl.b64 %a6,%a6,3; shl.b64 %a7,%a7,3;
+ add.u64 %a5,%a1,%a5; add.u64 %a6,%a1,%a6; add.u64 %a7,%a1,%a7;
+ ld.global.f64 %d0,[%a5]; ld.global.f64 %d1,[%a6]; ld.global.f64 %d2,[%a7];
+ setp.ge.f64 %p,%d0,0d0000000000000000; selp.u32 %r5,1,0,%p;
+ setp.ge.f64 %p,%d1,0d0000000000000000; selp.u32 %r6,2,0,%p;
+ setp.ge.f64 %p,%d2,0d0000000000000000; selp.u32 %r7,4,0,%p;
+ add.u32 %r8,%r5,%r6; add.u32 %r9,%r8,%r7;
+ mul.wide.u32 %a8,%r3,4; add.u64 %a9,%a2,%a8; st.global.u32 [%a9],%r9;
+CLASS_END: ret;
+}
+
+.visible .entry intersections(.param .u64 vertices,.param .u64 edges,.param .u64 distance,.param .u64 output,.param .u32 count)
+{
+ .reg .pred %p;
+ .reg .b32 %r<5>;
+ .reg .b64 %a<18>;
+ .reg .f64 %d<10>;
+ ld.param.u64 %a0,[vertices]; ld.param.u64 %a1,[edges]; ld.param.u64 %a2,[distance]; ld.param.u64 %a3,[output]; ld.param.u32 %r4,[count];
+ mov.u32 %r0,%ctaid.x; mov.u32 %r1,%ntid.x; mov.u32 %r2,%tid.x;
+ mad.lo.s32 %r3,%r0,%r1,%r2; setp.ge.u32 %p,%r3,%r4; @%p bra EDGE_END;
+ mul.wide.u32 %a4,%r3,16; add.u64 %a5,%a1,%a4;
+ ld.global.u64 %a6,[%a5]; ld.global.u64 %a7,[%a5+8];
+ shl.b64 %a8,%a6,3; shl.b64 %a9,%a7,3; add.u64 %a8,%a2,%a8; add.u64 %a9,%a2,%a9;
+ ld.global.f64 %d0,[%a8]; ld.global.f64 %d1,[%a9]; sub.rn.f64 %d2,%d0,%d1; div.rn.f64 %d3,%d0,%d2;
+ mul.lo.u64 %a10,%a6,24; mul.lo.u64 %a11,%a7,24; add.u64 %a10,%a0,%a10; add.u64 %a11,%a0,%a11;
+ mul.wide.u32 %a12,%r3,24; add.u64 %a13,%a3,%a12;
+ ld.global.f64 %d4,[%a10]; ld.global.f64 %d5,[%a11]; sub.rn.f64 %d6,%d5,%d4; mul.rn.f64 %d7,%d6,%d3; add.rn.f64 %d8,%d4,%d7; st.global.f64 [%a13],%d8;
+ ld.global.f64 %d4,[%a10+8]; ld.global.f64 %d5,[%a11+8]; sub.rn.f64 %d6,%d5,%d4; mul.rn.f64 %d7,%d6,%d3; add.rn.f64 %d8,%d4,%d7; st.global.f64 [%a13+8],%d8;
+ ld.global.f64 %d4,[%a10+16]; ld.global.f64 %d5,[%a11+16]; sub.rn.f64 %d6,%d5,%d4; mul.rn.f64 %d7,%d6,%d3; add.rn.f64 %d8,%d4,%d7; st.global.f64 [%a13+16],%d8;
+EDGE_END: ret;
+}

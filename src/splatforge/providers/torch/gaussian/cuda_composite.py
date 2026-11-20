@@ -23,13 +23,11 @@ def extension():
         root = os.environ.get("TORCH_EXTENSIONS_DIR")
         if not root:
             raise RuntimeError(
-                "set explicit task-owned TORCH_EXTENSIONS_DIR before CUDA build"
+                "Set TORCH_EXTENSIONS_DIR before loading the composite CUDA extension"
             )
-        build = Path(root).resolve() / "selected_composite_v1"
-        if os.path.isdir("/root/autodl-tmp") and not build.is_relative_to(
-            Path("/root/autodl-tmp")
-        ):
-            raise ValueError("CUDA build must remain on the AutoDL data disk")
+        from ...._paths import output_path
+
+        build = output_path(Path(root).expanduser() / "selected_composite_v1")
         build.mkdir(parents=True, exist_ok=True)
         _extension = load(
             name="sf_selected_composite_v1",
@@ -76,7 +74,7 @@ class _SelectedComposite(torch.autograd.Function):
         return *values, None
 
 
-def composite(a, color, depth, normal, *, distortions):
+def composite(a, color, depth, normal, *, distortions, detach_l1_weights=False):
     if a.device.type != "cuda" or a.dtype != torch.float32:
         raise ValueError("selected CUDA composite requires explicit CUDA float32")
     if a.numel() >= 2**31:
@@ -84,6 +82,8 @@ def composite(a, color, depth, normal, *, distortions):
             "selected CUDA composite uses 32-bit accessors; split the execution batch"
         )
     mode = {"none": 0, "l1": 1, "l2": 2, "both": 3}[distortions]
+    if detach_l1_weights:
+        mode |= 4
     return _SelectedComposite.apply(a, color, depth, normal, mode)
 
 

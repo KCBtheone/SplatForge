@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ExecutionPolicy:
     providers: tuple[str, ...] = ("native_cuda", "triton", "torch")
     implementation_id: str | None = None
