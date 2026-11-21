@@ -146,7 +146,6 @@ packages are available there as a convenience.
 ## Documentation and development
 
 - [Studio guide](docs/studio/PUBLIC_GUIDE.md): inputs, backends, plugins, and exports.
-- [Architecture](ARCHITECTURE.md): design direction; some sections describe planned work.
 - [Roadmap](docs/ROADMAP.md): feasibility work, the first operator library, and later expansion.
 - [Source and dependency notes](THIRD_PARTY.md).
 - [Preview release notes](docs/releases/0.0.1a1.md).

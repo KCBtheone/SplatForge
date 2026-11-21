@@ -1,4 +1,4 @@
-include LICENSE NOTICE README.md THIRD_PARTY.md CONTRIBUTING.md ARCHITECTURE.md REUSE.toml
+include LICENSE NOTICE README.md THIRD_PARTY.md CONTRIBUTING.md REUSE.toml
 graft src
 graft specs
 graft provenance
